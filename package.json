@@ -1,0 +1,12 @@
+{
+  "name": "jarvis-incident-chat",
+  "private": true,
+  "workspaces": [
+    "apps/*",
+    "packages/*"
+  ],
+  "scripts": {
+    "dev": "npm run -w @jarvis/server dev",
+    "lint": "npm run -w @jarvis/shared lint && npm run -w @jarvis/server lint && npm run -w @jarvis/worker lint && npm run -w @jarvis/desktop lint"
+  }
+}

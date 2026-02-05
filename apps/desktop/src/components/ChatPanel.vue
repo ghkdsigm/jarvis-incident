@@ -5,6 +5,52 @@
       <div class="text-xs text-zinc-500">{{ store.activeRoomId }}</div>
     </div>
 
+    <div v-if="store.activeRoomId" class="p-3 border-b border-zinc-800 bg-zinc-950 space-y-2">
+      <div class="flex items-center justify-between gap-2">
+        <div class="text-xs text-zinc-400">
+          화면 공유:
+          <span class="text-zinc-200">
+            {{ store.screenShareRoomId === store.activeRoomId ? store.screenShareMode : "idle" }}
+          </span>
+        </div>
+        <div class="flex items-center gap-2">
+          <button
+            class="px-2 py-1 text-xs rounded bg-zinc-800 hover:bg-zinc-700"
+            :disabled="store.screenShareMode === 'sharing' && store.screenShareRoomId === store.activeRoomId"
+            @click="startShare"
+          >
+            화면 공유 시작
+          </button>
+          <button class="px-2 py-1 text-xs rounded bg-zinc-800 hover:bg-zinc-700" @click="stopShare">중지</button>
+        </div>
+      </div>
+
+      <div
+        v-if="store.screenShareRoomId === store.activeRoomId && (store.screenShareRemote || store.screenShareLocal)"
+        class="grid grid-cols-2 gap-2"
+      >
+        <div class="space-y-1">
+          <div class="text-[11px] text-zinc-500">상대 화면</div>
+          <video
+            ref="remoteVideo"
+            class="w-full h-40 bg-black rounded border border-zinc-800 object-contain"
+            autoplay
+            playsinline
+          />
+        </div>
+        <div class="space-y-1">
+          <div class="text-[11px] text-zinc-500">내 화면(프리뷰)</div>
+          <video
+            ref="localVideo"
+            class="w-full h-40 bg-black rounded border border-zinc-800 object-contain"
+            autoplay
+            muted
+            playsinline
+          />
+        </div>
+      </div>
+    </div>
+
     <div ref="scroller" class="flex-1 overflow-auto p-3 space-y-2">
       <div v-for="m in store.activeMessages" :key="m.id" class="max-w-full">
         <div class="text-xs text-zinc-500 flex items-center gap-2">
@@ -41,6 +87,8 @@ import { isJarvisTrigger, stripJarvisPrefix } from "@jarvis/shared";
 const store = useSessionStore();
 const text = ref("");
 const scroller = ref<HTMLDivElement | null>(null);
+const remoteVideo = ref<HTMLVideoElement | null>(null);
+const localVideo = ref<HTMLVideoElement | null>(null);
 
 function scrollToBottom() {
   if (!scroller.value) return;
@@ -66,11 +114,55 @@ function askJarvisQuick() {
   store.askJarvis(store.activeRoomId, p);
 }
 
+async function startShare() {
+  if (!store.activeRoomId) return;
+  try {
+    await store.startScreenShare(store.activeRoomId);
+  } catch (e: any) {
+    alert(e?.message ?? "화면 공유를 시작할 수 없습니다.");
+  }
+}
+
+function stopShare() {
+  store.stopScreenShare(store.activeRoomId);
+}
+
 watch(
   () => store.activeMessages.length,
   async () => {
     await nextTick();
     scrollToBottom();
+  }
+);
+
+watch(
+  () => store.screenShareRemote,
+  async (s) => {
+    await nextTick();
+    const show = store.screenShareRoomId === store.activeRoomId ? s : null;
+    if (remoteVideo.value) (remoteVideo.value as any).srcObject = show ?? null;
+  },
+  { immediate: true }
+);
+
+watch(
+  () => store.screenShareLocal,
+  async (s) => {
+    await nextTick();
+    const show = store.screenShareRoomId === store.activeRoomId ? s : null;
+    if (localVideo.value) (localVideo.value as any).srcObject = show ?? null;
+  },
+  { immediate: true }
+);
+
+watch(
+  () => store.activeRoomId,
+  async () => {
+    await nextTick();
+    const remote = store.screenShareRoomId === store.activeRoomId ? store.screenShareRemote : null;
+    const local = store.screenShareRoomId === store.activeRoomId ? store.screenShareLocal : null;
+    if (remoteVideo.value) (remoteVideo.value as any).srcObject = remote ?? null;
+    if (localVideo.value) (localVideo.value as any).srcObject = local ?? null;
   }
 );
 </script>

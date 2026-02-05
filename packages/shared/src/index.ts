@@ -24,11 +24,38 @@ export const WsJarvisRequestSchema = z.object({
   prompt: z.string().min(1)
 });
 
+export const WsRtcOfferSchema = z.object({
+  type: z.literal("rtc.offer"),
+  roomId: z.string(),
+  sdp: z.any()
+});
+
+export const WsRtcAnswerSchema = z.object({
+  type: z.literal("rtc.answer"),
+  roomId: z.string(),
+  sdp: z.any()
+});
+
+export const WsRtcIceSchema = z.object({
+  type: z.literal("rtc.ice"),
+  roomId: z.string(),
+  candidate: z.any()
+});
+
+export const WsRtcHangupSchema = z.object({
+  type: z.literal("rtc.hangup"),
+  roomId: z.string()
+});
+
 export const WsClientMessageSchema = z.discriminatedUnion("type", [
   WsClientHelloSchema,
   WsJoinRoomSchema,
   WsSendMessageSchema,
-  WsJarvisRequestSchema
+  WsJarvisRequestSchema,
+  WsRtcOfferSchema,
+  WsRtcAnswerSchema,
+  WsRtcIceSchema,
+  WsRtcHangupSchema
 ]);
 
 export type WsClientMessage = z.infer<typeof WsClientMessageSchema>;
@@ -44,6 +71,10 @@ export type RoomEvent =
   | { type: "bot.stream"; payload: { requestId: string; roomId: string; chunk: string } }
   | { type: "bot.done"; payload: MessageDto }
   | { type: "room.joined"; payload: { roomId: string } }
+  | { type: "rtc.offer"; payload: { roomId: string; fromUserId: string; sdp: any } }
+  | { type: "rtc.answer"; payload: { roomId: string; fromUserId: string; sdp: any } }
+  | { type: "rtc.ice"; payload: { roomId: string; fromUserId: string; candidate: any } }
+  | { type: "rtc.hangup"; payload: { roomId: string; fromUserId: string } }
   | { type: "error"; payload: { message: string; code?: string } };
 
 export const MessageDtoSchema = z.object({

@@ -40,13 +40,6 @@ cp .env.example .env
 docker compose up -d postgres redis
 ```
 
-Windows PowerShell:
-
-```powershell
-cd infra
-Copy-Item .env.example .env
-docker compose up -d postgres redis
-```
 
 ### 2) 서버 준비(Prisma) + 실행
 `apps/server`의 `.env.example`을 복사해 `.env`를 만들고, Prisma를 생성/마이그레이션 후 개발 서버를 실행합니다.
@@ -61,15 +54,6 @@ npx prisma migrate dev --name init
 npm run dev
 ```
 
-Windows PowerShell:
-
-```powershell
-cd apps/server
-Copy-Item .env.example .env
-npx prisma generate
-npx prisma migrate dev --name init
-npm run dev
-```
 
 - API Base: `http://localhost:8080`
 - WebSocket: `ws://localhost:8080/ws`
@@ -85,13 +69,6 @@ cp .env.example .env
 npm run dev
 ```
 
-Windows PowerShell:
-
-```powershell
-cd apps/worker
-Copy-Item .env.example .env
-npm run dev
-```
 
 ### 4) 데스크톱 앱 실행
 `apps/desktop`에서 `.env.example`을 복사해 `.env`를 만든 뒤 실행합니다.
@@ -104,13 +81,6 @@ cp .env.example .env
 npm run dev
 ```
 
-Windows PowerShell:
-
-```powershell
-cd apps/desktop
-Copy-Item .env.example .env
-npm run dev
-```
 
 ## 환경변수 요약
 

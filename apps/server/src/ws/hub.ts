@@ -132,6 +132,49 @@ export async function registerWs(app: FastifyInstance) {
         });
         return;
       }
+
+      if (msg.type === "rtc.offer") {
+        const roomId = msg.roomId;
+        if (!conn.rooms.has(roomId)) {
+          connection.socket.send(JSON.stringify({ type: "error", payload: { message: "NOT_IN_ROOM" } }));
+          return;
+        }
+        broadcast(roomId, { type: "rtc.offer", payload: { roomId, fromUserId: conn.userId, sdp: msg.sdp } });
+        return;
+      }
+
+      if (msg.type === "rtc.answer") {
+        const roomId = msg.roomId;
+        if (!conn.rooms.has(roomId)) {
+          connection.socket.send(JSON.stringify({ type: "error", payload: { message: "NOT_IN_ROOM" } }));
+          return;
+        }
+        broadcast(roomId, { type: "rtc.answer", payload: { roomId, fromUserId: conn.userId, sdp: msg.sdp } });
+        return;
+      }
+
+      if (msg.type === "rtc.ice") {
+        const roomId = msg.roomId;
+        if (!conn.rooms.has(roomId)) {
+          connection.socket.send(JSON.stringify({ type: "error", payload: { message: "NOT_IN_ROOM" } }));
+          return;
+        }
+        broadcast(roomId, {
+          type: "rtc.ice",
+          payload: { roomId, fromUserId: conn.userId, candidate: msg.candidate }
+        });
+        return;
+      }
+
+      if (msg.type === "rtc.hangup") {
+        const roomId = msg.roomId;
+        if (!conn.rooms.has(roomId)) {
+          connection.socket.send(JSON.stringify({ type: "error", payload: { message: "NOT_IN_ROOM" } }));
+          return;
+        }
+        broadcast(roomId, { type: "rtc.hangup", payload: { roomId, fromUserId: conn.userId } });
+        return;
+      }
     });
 
     connection.socket.on("close", () => {

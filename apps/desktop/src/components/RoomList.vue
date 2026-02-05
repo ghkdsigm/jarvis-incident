@@ -12,13 +12,21 @@
 
       <div v-else class="flex items-center justify-between">
         <div class="text-xs text-zinc-400">{{ store.user?.email }}</div>
-        <button class="px-2 py-1 text-xs rounded bg-zinc-800 hover:bg-zinc-700" @click="store.reloadRooms">
-          새로고침
-        </button>
+        <div class="flex items-center gap-2">
+          <button class="px-2 py-1 text-xs rounded bg-zinc-800 hover:bg-zinc-700" @click="createRoom">
+            방 만들기
+          </button>
+          <button class="px-2 py-1 text-xs rounded bg-zinc-800 hover:bg-zinc-700" @click="store.reloadRooms">
+            새로고침
+          </button>
+        </div>
       </div>
     </div>
 
     <div class="flex-1 overflow-auto">
+      <div v-if="store.token && !store.rooms.length" class="p-3 text-xs text-zinc-500">
+        방이 없습니다. 우측 상단의 '방 만들기'로 생성하세요.
+      </div>
       <button
         v-for="r in store.rooms"
         :key="r.id"
@@ -43,5 +51,11 @@ const name = ref("Dev 1");
 
 async function login() {
   await store.login(email.value, name.value);
+}
+
+async function createRoom() {
+  const title = prompt("방 이름");
+  if (!title) return;
+  await store.createRoomAndOpen(title);
 }
 </script>

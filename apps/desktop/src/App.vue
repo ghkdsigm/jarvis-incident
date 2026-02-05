@@ -2,10 +2,10 @@
   <div class="w-screen h-screen flex flex-col">
     <TopBar />
     <div class="flex-1 grid grid-cols-12 min-h-0">
-      <aside class="col-span-4 border-r border-zinc-800 min-h-0">
+      <aside class="col-span-3 border-r border-zinc-800 min-h-0">
         <RoomList />
       </aside>
-      <main class="col-span-8 min-h-0">
+      <main class="col-span-9 min-h-0">
         <ChatPanel />
       </main>
     </div>

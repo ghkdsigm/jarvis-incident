@@ -18,6 +18,19 @@ export async function fetchRooms(token: string): Promise<any[]> {
   return await res.json();
 }
 
+export async function createRoom(
+  token: string,
+  input: { title?: string; type?: string; memberUserIds?: string[] } = {}
+): Promise<any> {
+  const res = await fetch(`${API_BASE}/rooms`, {
+    method: "POST",
+    headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
+    body: JSON.stringify(input)
+  });
+  if (!res.ok) throw new Error(`Create room failed: ${res.status}`);
+  return await res.json();
+}
+
 export async function fetchMessages(token: string, roomId: string, take = 80): Promise<any[]> {
   const url = new URL(`${API_BASE}/rooms/${roomId}/messages`);
   url.searchParams.set("take", String(take));

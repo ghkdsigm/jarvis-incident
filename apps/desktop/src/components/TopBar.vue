@@ -1,11 +1,37 @@
 <template>
-  <div class="h-12 flex items-center justify-between px-3 border-b t-border t-topbar">
-    <div class="flex items-center gap-2">
-      <div class="w-2.5 h-2.5 rounded-full bg-emerald-500"></div>
-      <div class="text-sm font-semibold">Dw-Brain</div>
-      <div class="text-xs t-text-muted">Dongwah Business Real-time AI Network</div>
+  <div
+    class="flex items-center justify-between border-b t-border t-topbar"
+    :class="miniMode ? 'h-11 px-2' : 'h-12 px-3'"
+  >
+    <div class="flex items-center gap-2 min-w-0">
+      <button
+        v-if="miniMode"
+        class="h-8 w-8 inline-flex items-center justify-center rounded border transition-colors t-btn-secondary"
+        title="채팅방 목록"
+        aria-label="채팅방 목록 열기"
+        @click="emit('open-rooms')"
+      >
+        <!-- list -->
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+          <path
+            d="M5 7h14M5 12h14M5 17h14"
+            stroke="currentColor"
+            stroke-width="1.8"
+            stroke-linecap="round"
+          />
+        </svg>
+      </button>
+
+      <div class="w-2.5 h-2.5 rounded-full bg-emerald-500 shrink-0"></div>
+      <div class="min-w-0">
+        <div class="text-sm font-semibold truncate">
+          {{ miniMode ? store.activeRoom?.title ?? "Dw-Brain" : "Dw-Brain" }}
+        </div>
+        <div v-if="!miniMode" class="text-xs t-text-muted truncate">Dongwah Business Real-time AI Network</div>
+      </div>
     </div>
-    <div class="flex items-center gap-2">
+
+    <div class="flex items-center gap-2 shrink-0">
       <button
         class="h-8 w-8 inline-flex items-center justify-center rounded border transition-colors"
         :class="
@@ -97,34 +123,23 @@
 </template>
 
 <script setup lang="ts">
-import { onMounted, ref } from "vue";
+import { computed, onMounted, ref } from "vue";
 import { getActiveTheme, toggleTheme, type ThemeMode } from "../theme";
+import { useSessionStore } from "../stores/session";
+import { useWindowStore } from "../stores/window";
 
-declare global {
-  interface Window {
-    jarvisDesktop?: {
-      getWindowState: () => Promise<{ alwaysOnTop: boolean; miniMode: boolean }>;
-      toggleAlwaysOnTop: () => Promise<boolean>;
-      toggleMiniMode: () => Promise<boolean>;
-    };
-  }
-}
+const emit = defineEmits<{ (e: "open-rooms"): void }>();
 
-const alwaysOnTop = ref(false);
-const miniMode = ref(false);
+const store = useSessionStore();
+const windowStore = useWindowStore();
+
+const alwaysOnTop = computed(() => windowStore.alwaysOnTop);
+const miniMode = computed(() => windowStore.miniMode);
 const theme = ref<ThemeMode>("dark");
 
 onMounted(async () => {
   theme.value = getActiveTheme();
-  try {
-    const s = await window.jarvisDesktop?.getWindowState?.();
-    if (s) {
-      alwaysOnTop.value = !!s.alwaysOnTop;
-      miniMode.value = !!s.miniMode;
-    }
-  } catch {
-    // ignore
-  }
+  windowStore.init();
 });
 
 function onToggleTheme() {
@@ -132,19 +147,9 @@ function onToggleTheme() {
 }
 
 async function toggleAlwaysOnTop() {
-  try {
-    const v = await window.jarvisDesktop?.toggleAlwaysOnTop?.();
-    if (typeof v === "boolean") alwaysOnTop.value = v;
-  } catch {
-    // ignore
-  }
+  await windowStore.toggleAlwaysOnTop();
 }
 async function toggleMiniMode() {
-  try {
-    const v = await window.jarvisDesktop?.toggleMiniMode?.();
-    if (typeof v === "boolean") miniMode.value = v;
-  } catch {
-    // ignore
-  }
+  await windowStore.toggleMiniMode();
 }
 </script>

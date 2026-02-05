@@ -32,7 +32,7 @@
       </div>
     </div>
 
-    <div class="flex-1 overflow-auto">
+    <div class="flex-1 overflow-auto t-scrollbar">
       <div v-if="!store.rooms.length" class="p-3 text-xs t-text-subtle">
         방이 없습니다. 우측 상단의 '방 만들기'로 생성하세요.
       </div>

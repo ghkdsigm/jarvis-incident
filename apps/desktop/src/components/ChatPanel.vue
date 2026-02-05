@@ -1,12 +1,12 @@
 <template>
   <div class="h-full flex flex-col min-h-0">
-    <div class="p-3 border-b t-border">
+    <div class="border-b t-border" :class="isMiniMode ? 'p-2' : 'p-3'">
       <div class="flex items-start justify-between gap-2">
         <div class="min-w-0">
           <div class="text-sm font-semibold truncate">{{ store.activeRoom?.title ?? "No room" }}</div>
-          <div class="text-xs t-text-subtle font-mono truncate">{{ store.activeRoomId }}</div>
+          <div v-if="!isMiniMode" class="text-xs t-text-subtle font-mono truncate">{{ store.activeRoomId }}</div>
         </div>
-        <div v-if="store.activeRoomId" class="flex items-center gap-2 shrink-0">
+        <div v-if="store.activeRoomId && !isMiniMode" class="flex items-center gap-2 shrink-0">
           <button
             class="h-8 w-8 inline-flex items-center justify-center rounded t-btn-secondary"
             title="이름 변경"
@@ -71,7 +71,7 @@
       </div>
     </div>
 
-    <div v-if="store.activeRoomId" class="p-3 border-b t-border t-surface space-y-2">
+    <div v-if="store.activeRoomId && !isMiniMode" class="p-3 border-b t-border t-surface space-y-2">
       <div class="flex items-center justify-between gap-2">
         <div class="text-xs t-text-muted">
           화면 공유:
@@ -120,7 +120,12 @@
       </div>
     </div>
 
-    <div ref="scroller" class="flex-1 overflow-auto p-3 space-y-2 t-surface" :style="{ opacity: String(chatOpacity) }">
+    <div
+      ref="scroller"
+      class="flex-1 overflow-auto space-y-2 t-surface t-scrollbar"
+      :class="isMiniMode ? 'p-2' : 'p-3'"
+      :style="{ opacity: String(chatOpacity) }"
+    >
       <div v-for="m in store.activeMessages" :key="m.id" class="w-full">
         <div class="flex" :class="bubbleWrapClass(m)">
           <div class="max-w-[72%] min-w-0">
@@ -171,8 +176,8 @@
       </div>
     </div>
 
-    <div class="p-3 border-t t-border t-surface">
-      <div class="mb-2 flex items-center gap-3">
+    <div class="border-t t-border t-surface" :class="isMiniMode ? 'p-2' : 'p-3'">
+      <div v-if="!isMiniMode" class="mb-2 flex items-center gap-3">
         <button
           class="px-3 py-2 text-sm rounded t-btn-secondary inline-flex items-center gap-2"
           :class="isListening ? 't-btn-primary' : ''"
@@ -326,16 +331,19 @@
             </div>
 
             <div class="text-[11px] t-text-subtle mb-1">전체</div>
-            <div class="emoji-grid">
+            <div class="emoji-grid t-scrollbar">
               <button v-for="e in EMOJIS" :key="e" type="button" class="emoji-chip" @click="pickEmoji(e)">
                 {{ e }}
               </button>
             </div>
           </div>
         </div>
-        <button class="px-6 py-2 text-sm rounded t-btn-secondary" @click="send">전송</button>
+        <button class="py-2 text-sm rounded t-btn-secondary" :class="isMiniMode ? 'px-3' : 'px-6'" @click="send">
+          전송
+        </button>
         <button
-          class="px-5 py-2 text-sm rounded t-btn-primary inline-flex items-center gap-1.5"
+          class="py-2 text-sm rounded t-btn-primary inline-flex items-center gap-1.5"
+          :class="isMiniMode ? 'px-3' : 'px-5'"
           title="AI에게 질문하기"
           @click="askJarvisQuick"
         >
@@ -391,7 +399,7 @@
           </button>
         </div>
       </div>
-      <div class="mt-2 flex items-center gap-2 text-xs t-text-muted">
+      <div v-if="!isMiniMode" class="mt-2 flex items-center gap-2 text-xs t-text-muted">
         <span>트리거: 메시지가 '자비스야'로 시작하면 자동 호출</span>
       </div>
     </div>
@@ -412,13 +420,20 @@
           <div class="text-xs t-text-muted">자주 묻는 질문</div>
           <div class="text-[11px] t-text-subtle">좌우로 드래그</div>
         </div>
-        <div class="flex items-center gap-2 overflow-x-auto flex-nowrap py-1 -mx-1 px-1 cursor-grab active:cursor-grabbing">
+        <div
+          ref="jarvisSuggestionsRow"
+          class="flex items-center gap-2 overflow-x-auto flex-nowrap py-1 -mx-1 px-1 cursor-grab active:cursor-grabbing t-scrollbar t-dragscroll-x"
+          @pointerdown="onJarvisSuggestionsPointerDown"
+          @pointermove="onJarvisSuggestionsPointerMove"
+          @pointerup="onJarvisSuggestionsPointerUp"
+          @pointercancel="onJarvisSuggestionsPointerUp"
+        >
           <button
             v-for="s in jarvisSuggestions"
             :key="s.key"
             type="button"
-            class="text-[11px] px-3 py-1 rounded-full border t-chip whitespace-nowrap"
-            @click="applyJarvisSuggestion(s.prompt)"
+            class="text-[12px] px-3 py-1.5 rounded-full border t-chip whitespace-nowrap"
+            @click="onJarvisSuggestionClick(s.prompt, $event)"
           >
             #{{ s.label }}
           </button>
@@ -446,7 +461,7 @@
         />
       </div>
 
-      <div class="max-h-[360px] overflow-auto rounded border t-border">
+      <div class="max-h-[360px] overflow-auto rounded border t-border t-scrollbar">
         <label
           v-for="c in filteredColleagues"
           :key="c.id"
@@ -550,10 +565,13 @@
 <script setup lang="ts">
 import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from "vue";
 import { useSessionStore } from "../stores/session";
+import { useWindowStore } from "../stores/window";
 import { isJarvisTrigger, stripJarvisPrefix } from "@jarvis/shared";
 import CommonModal from "./ui/CommonModal.vue";
 
 const store = useSessionStore();
+const windowStore = useWindowStore();
+const isMiniMode = computed(() => windowStore.miniMode);
 const text = ref("");
 const textInput = ref<HTMLInputElement | null>(null);
 const emojiOpen = ref(false);
@@ -812,6 +830,14 @@ function resetOpacity() {
 const jarvisOpen = ref(false);
 const jarvisPrompt = ref("");
 const jarvisTextarea = ref<HTMLTextAreaElement | null>(null);
+const jarvisSuggestionsRow = ref<HTMLDivElement | null>(null);
+
+let jarvisSuggestionsPointerId: number | null = null;
+let jarvisSuggestionsDragStartX = 0;
+let jarvisSuggestionsDragStartScrollLeft = 0;
+let jarvisSuggestionsDidDrag = false;
+let jarvisSuggestionsResetTimer: number | null = null;
+const JARVIS_SUGGESTIONS_DRAG_THRESHOLD_PX = 8;
 
 const jarvisSuggestions = [
   { key: "brief_summary", label: "전체 요약", prompt: "전체 내용을 간단하게 요약해줘" },
@@ -819,8 +845,76 @@ const jarvisSuggestions = [
   { key: "teams_alarm_10m", label: "10분 뒤 알람", prompt: "10분 뒤에 팀즈로 알람 줘" },
   { key: "rm_links", label: "RM 링크", prompt: "관련 RM 링크 찾아줘" },
   { key: "best_internal_reco", label: "사내 인력 추천", prompt: "대화 맥락으로 봤을때 가장 최적의 사내 인력 추천좀 해줄래?" },
-  { key: "latest_news", label: "최신 뉴스", prompt: "관련 최신 내용 뉴스를 찾아줘" }
+  { key: "latest_news", label: "최신 뉴스", prompt: "관련 최신 내용 뉴스를 찾아줘" },
+  { key: "send_minutes_email", label: "회의록 메일", prompt: "회의록처럼 정리해서 참가자들 메일로 보내줘" },
+  { key: "write_notion", label: "노션 작성", prompt: "노션에 작성해줘" }
 ] as const;
+
+function onJarvisSuggestionsPointerDown(e: PointerEvent) {
+  const el = jarvisSuggestionsRow.value;
+  if (!el) return;
+
+  // 마우스는 좌클릭만, 터치는 그대로 허용
+  if (e.pointerType === "mouse" && e.button !== 0) return;
+
+  jarvisSuggestionsPointerId = e.pointerId;
+  jarvisSuggestionsDragStartX = e.clientX;
+  jarvisSuggestionsDragStartScrollLeft = el.scrollLeft;
+  jarvisSuggestionsDidDrag = false;
+
+  // 클릭 사용성을 위해: 실제 드래그가 시작될 때만 pointer capture 적용
+}
+
+function onJarvisSuggestionsPointerMove(e: PointerEvent) {
+  const el = jarvisSuggestionsRow.value;
+  if (!el) return;
+  if (jarvisSuggestionsPointerId !== e.pointerId) return;
+
+  const dx = e.clientX - jarvisSuggestionsDragStartX;
+  if (!jarvisSuggestionsDidDrag) {
+    if (Math.abs(dx) < JARVIS_SUGGESTIONS_DRAG_THRESHOLD_PX) return;
+    jarvisSuggestionsDidDrag = true;
+    try {
+      el.setPointerCapture(e.pointerId);
+    } catch {
+      // ignore
+    }
+  }
+  el.scrollLeft = jarvisSuggestionsDragStartScrollLeft - dx;
+}
+
+function onJarvisSuggestionsPointerUp(e: PointerEvent) {
+  const el = jarvisSuggestionsRow.value;
+  if (!el) return;
+  if (jarvisSuggestionsPointerId !== e.pointerId) return;
+
+  jarvisSuggestionsPointerId = null;
+
+  if (jarvisSuggestionsDidDrag) {
+    try {
+      el.releasePointerCapture(e.pointerId);
+    } catch {
+      // ignore
+    }
+
+    // 드래그 직후 발생하는 클릭 이벤트만 차단하고 즉시 복구
+    if (jarvisSuggestionsResetTimer != null) window.clearTimeout(jarvisSuggestionsResetTimer);
+    jarvisSuggestionsResetTimer = window.setTimeout(() => {
+      jarvisSuggestionsDidDrag = false;
+      jarvisSuggestionsResetTimer = null;
+    }, 0);
+  }
+}
+
+async function onJarvisSuggestionClick(prompt: string, ev: MouseEvent) {
+  if (jarvisSuggestionsDidDrag) {
+    ev.preventDefault();
+    ev.stopPropagation();
+    jarvisSuggestionsDidDrag = false;
+    return;
+  }
+  await applyJarvisSuggestion(prompt);
+}
 
 async function applyJarvisSuggestion(prompt: string) {
   jarvisPrompt.value = prompt;
@@ -1398,5 +1492,10 @@ watch(
   border-radius: 9999px;
   background: var(--range-thumb);
   border: 2px solid var(--range-thumb-border);
+}
+
+.t-dragscroll-x {
+  user-select: none;
+  touch-action: pan-y;
 }
 </style>

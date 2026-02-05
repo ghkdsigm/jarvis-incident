@@ -5,13 +5,13 @@
     <TopBar />
     <div class="flex-1 flex min-h-0">
       <aside
-        class="border-r border-zinc-800 min-h-0 relative bg-zinc-950"
+        class="border-r t-border min-h-0 relative t-sidebar"
         :style="{ width: `${sidebarCollapsed ? collapsedWidth : sidebarWidth}px` }"
       >
         <div class="h-full min-h-0">
           <div v-if="sidebarCollapsed" class="h-full flex items-start justify-center pt-2">
             <button
-              class="px-2 py-1 text-xs rounded bg-zinc-800 hover:bg-zinc-700 text-zinc-100"
+              class="px-2 py-1 text-xs rounded t-btn-secondary"
               @click="toggleSidebar"
               title="채팅방 리스트 펼치기"
             >
@@ -20,7 +20,7 @@
           </div>
           <div v-else class="h-full min-h-0">
             <button
-              class="absolute top-3 right-2 z-10 px-2 py-1 text-xs rounded bg-zinc-800 hover:bg-zinc-700 text-zinc-100"
+              class="absolute top-3 right-2 z-10 px-2 py-1 text-xs rounded t-btn-secondary"
               @click="toggleSidebar"
               title="채팅방 리스트 접기"
             >
@@ -38,13 +38,13 @@
         />
       </aside>
 
-      <main class="flex-1 min-h-0">
+      <main class="flex-1 min-h-0 t-surface">
         <ChatPanel />
       </main>
     </div>
   </div>
 
-  <div v-else class="w-screen h-screen flex items-center justify-center bg-zinc-950 text-zinc-400 text-sm">
+  <div v-else class="w-screen h-screen flex items-center justify-center t-surface t-text-muted text-sm">
     세션 확인 중...
   </div>
 </template>

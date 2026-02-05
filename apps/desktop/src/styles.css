@@ -1,7 +1,305 @@
+/* Pretendard (local assets) */
+@font-face {
+  font-family: "Pretendard";
+  src:
+    url("./assets/fonts/Pretendard-Thin.woff2") format("woff2"),
+    url("./assets/fonts/Pretendard-Thin.woff") format("woff"),
+    url("./assets/fonts/Pretendard-Thin.ttf") format("truetype"),
+    url("./assets/fonts/Pretendard-Thin.otf") format("opentype");
+  font-weight: 100;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: "Pretendard";
+  src:
+    url("./assets/fonts/Pretendard-Regular.woff2") format("woff2"),
+    url("./assets/fonts/Pretendard-Regular.woff") format("woff"),
+    url("./assets/fonts/Pretendard-Regular.ttf") format("truetype"),
+    url("./assets/fonts/Pretendard-Regular.otf") format("opentype");
+  font-weight: 400;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: "Pretendard";
+  src:
+    url("./assets/fonts/Pretendard-Medium.woff2") format("woff2"),
+    url("./assets/fonts/Pretendard-Medium.woff") format("woff"),
+    url("./assets/fonts/Pretendard-Medium.ttf") format("truetype"),
+    url("./assets/fonts/Pretendard-Medium.otf") format("opentype");
+  font-weight: 500;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: "Pretendard";
+  src:
+    url("./assets/fonts/Pretendard-SemiBold.woff2") format("woff2"),
+    url("./assets/fonts/Pretendard-SemiBold.woff") format("woff"),
+    url("./assets/fonts/Pretendard-SemiBold.ttf") format("truetype"),
+    url("./assets/fonts/Pretendard-SemiBold.otf") format("opentype");
+  font-weight: 600;
+  font-style: normal;
+  font-display: swap;
+}
+
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
 
-:root {
-  color-scheme: dark;
+@layer base {
+  :root {
+    /* default theme: dark */
+    color-scheme: dark;
+
+    /* Core surfaces */
+    --bg-app: #09090b; /* zinc-950 */
+    --bg-surface: #09090b; /* main panels */
+    --bg-surface-2: #18181b; /* zinc-900 */
+    --bg-elevated: rgba(24, 24, 27, 0.4); /* zinc-900/40 */
+    --bg-hover: #18181b; /* hover rows */
+    --bg-active: rgba(24, 24, 27, 0.7); /* active row */
+
+    /* Typography */
+    --text: #f4f4f5; /* zinc-100 */
+    --text-muted: #a1a1aa; /* zinc-400 */
+    --text-subtle: #71717a; /* zinc-500 */
+    --text-faint: #52525b; /* zinc-600 */
+
+    /* Borders */
+    --border: #27272a; /* zinc-800 */
+    --border-strong: #3f3f46; /* zinc-700 */
+
+    /* Brand & states */
+    --brand: #00694d;
+    --brand-hover: #005a42;
+    --focus: #00ad50;
+    --danger: #fb4f4f;
+    --danger-hover: #e54545;
+
+    /* Controls */
+    --btn-secondary-bg: #27272a; /* zinc-800 */
+    --btn-secondary-hover: #3f3f46; /* zinc-700 */
+    --btn-secondary-border: #27272a;
+    --btn-secondary-text: #f4f4f5;
+
+    --input-bg: #18181b; /* zinc-900 */
+    --input-bg-strong: #09090b; /* zinc-950 */
+    --input-placeholder: #71717a;
+
+    /* Chips / badges */
+    --chip-bg: #18181b; /* zinc-900 */
+    --chip-border: #27272a; /* zinc-800 */
+    --chip-text: #d4d4d8; /* zinc-300 */
+    --avatar-bg: #27272a; /* zinc-800 */
+    --avatar-text: #e4e4e7; /* zinc-200 */
+
+    /* Chat bubbles */
+    --bubble-me-bg: var(--brand);
+    --bubble-me-border: var(--brand);
+    --bubble-me-text: #ffffff;
+    --bubble-bot-bg: #18181b;
+    --bubble-bot-border: #27272a;
+    --bubble-bot-text: #f4f4f5;
+    --bubble-other-bg: #27272a;
+    --bubble-other-border: #3f3f46;
+    --bubble-other-text: #f4f4f5;
+    --bubble-system-text: #a1a1aa;
+
+    /* Range slider */
+    --range-track: #27272a;
+    --range-thumb: var(--focus);
+    --range-thumb-border: #0a0a0a;
+  }
+
+  :root[data-theme="light"] {
+    color-scheme: light;
+
+    /* Light concept (user 요청) */
+    --bg-app: #f4f7fe;
+    --bg-surface: #ffffff;
+    --bg-surface-2: #ffffff;
+    --bg-elevated: rgba(255, 255, 255, 0.85);
+    --bg-hover: #f1f5f9; /* slate-100 */
+    --bg-active: #e6fffa; /* teal-50 */
+
+    --text: #0f172a; /* slate-900 */
+    --text-muted: #475569; /* slate-600 */
+    --text-subtle: #64748b; /* slate-500 */
+    --text-faint: #94a3b8; /* slate-400 */
+
+    --border: #e2e8f0; /* slate-200 */
+    --border-strong: #cbd5e1; /* slate-300 */
+
+    --brand: #4fd1c5;
+    --brand-hover: #38b2ac;
+    --focus: #4fd1c5;
+
+    --btn-secondary-bg: #ffffff;
+    --btn-secondary-hover: #f1f5f9;
+    --btn-secondary-border: #e2e8f0;
+    --btn-secondary-text: #0f172a;
+
+    --input-bg: #ffffff;
+    --input-bg-strong: #ffffff;
+    --input-placeholder: #94a3b8;
+
+    --chip-bg: #f1f5f9; /* slate-100 */
+    --chip-border: #e2e8f0; /* slate-200 */
+    --chip-text: #334155; /* slate-700 */
+    --avatar-bg: #e2e8f0; /* slate-200 */
+    --avatar-text: #334155; /* slate-700 */
+
+    --bubble-bot-bg: #ffffff;
+    --bubble-bot-border: #e2e8f0;
+    --bubble-bot-text: #0f172a;
+    --bubble-other-bg: #f1f5f9;
+    --bubble-other-border: #cbd5e1;
+    --bubble-other-text: #0f172a;
+    --bubble-system-text: #475569;
+
+    --range-track: #e2e8f0;
+    --range-thumb-border: #ffffff;
+  }
+
+  html,
+  body {
+    height: 100%;
+    background: var(--bg-app);
+    color: var(--text);
+    font-family: Pretendard, "Noto Sans KR", "Noto Sans", Arial, sans-serif;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+  }
+}
+
+@layer components {
+  /* Surfaces / layout */
+  .t-topbar {
+    background: var(--bg-elevated);
+    border-color: var(--border);
+  }
+  .t-sidebar {
+    background: var(--bg-surface);
+    border-color: var(--border);
+  }
+  .t-surface {
+    background: var(--bg-surface);
+  }
+  .t-surface-2 {
+    background: var(--bg-surface-2);
+  }
+  .t-border {
+    border-color: var(--border);
+  }
+  .t-border-strong {
+    border-color: var(--border-strong);
+  }
+
+  /* Text helpers */
+  .t-text {
+    color: var(--text);
+  }
+  .t-text-muted {
+    color: var(--text-muted);
+  }
+  .t-text-subtle {
+    color: var(--text-subtle);
+  }
+  .t-text-faint {
+    color: var(--text-faint);
+  }
+
+  /* Buttons */
+  .t-btn-secondary {
+    background: var(--btn-secondary-bg);
+    color: var(--btn-secondary-text);
+    border: 1px solid var(--btn-secondary-border);
+  }
+  .t-btn-secondary:hover {
+    background: var(--btn-secondary-hover);
+  }
+
+  .t-btn-primary {
+    background: var(--brand);
+    color: #ffffff;
+  }
+  .t-btn-primary:hover {
+    background: var(--brand-hover);
+  }
+
+  .t-btn-danger {
+    background: var(--danger);
+    color: #ffffff;
+  }
+  .t-btn-danger:hover {
+    background: var(--danger-hover);
+  }
+
+  /* Inputs */
+  .t-input {
+    background: var(--input-bg);
+    color: var(--text);
+    border: 1px solid var(--border);
+  }
+  .t-input::placeholder {
+    color: var(--input-placeholder);
+  }
+  .t-input:focus {
+    outline: none;
+    border-color: var(--focus);
+    box-shadow: 0 0 0 1px var(--focus);
+  }
+  .t-input-strong {
+    background: var(--input-bg-strong);
+  }
+
+  .t-accent {
+    accent-color: var(--focus);
+  }
+
+  /* Lists */
+  .t-row:hover {
+    background: var(--bg-hover);
+  }
+  .t-row-active {
+    background: var(--bg-active);
+  }
+
+  .t-chip {
+    background: var(--chip-bg);
+    border-color: var(--chip-border);
+    color: var(--chip-text);
+  }
+
+  .t-avatar {
+    background: var(--avatar-bg);
+    color: var(--avatar-text);
+  }
+
+  /* Chat bubbles */
+  .t-bubble-me {
+    background: var(--bubble-me-bg);
+    border-color: var(--bubble-me-border);
+    color: var(--bubble-me-text);
+  }
+  .t-bubble-bot {
+    background: var(--bubble-bot-bg);
+    border-color: var(--bubble-bot-border);
+    color: var(--bubble-bot-text);
+  }
+  .t-bubble-other {
+    background: var(--bubble-other-bg);
+    border-color: var(--bubble-other-border);
+    color: var(--bubble-other-text);
+  }
+  .t-bubble-system {
+    background: transparent;
+    border-color: transparent;
+    color: var(--bubble-system-text);
+  }
 }

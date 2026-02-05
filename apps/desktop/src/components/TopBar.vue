@@ -1,17 +1,17 @@
 <template>
-  <div class="h-12 flex items-center justify-between px-3 border-b border-zinc-800 bg-zinc-900/40">
+  <div class="h-12 flex items-center justify-between px-3 border-b t-border t-topbar">
     <div class="flex items-center gap-2">
       <div class="w-2.5 h-2.5 rounded-full bg-emerald-500"></div>
       <div class="text-sm font-semibold">Dw-Brain</div>
-      <div class="text-xs text-zinc-400">Dongwah Business Real-time AI Network</div>
+      <div class="text-xs t-text-muted">Dongwah Business Real-time AI Network</div>
     </div>
     <div class="flex items-center gap-2">
       <button
         class="h-8 w-8 inline-flex items-center justify-center rounded border transition-colors"
         :class="
           alwaysOnTop
-            ? 'bg-[#00694D] border-[#00694D] text-white'
-            : 'bg-zinc-800 border-zinc-800 hover:bg-zinc-700 hover:border-zinc-700 text-zinc-100'
+            ? 't-btn-primary border-transparent'
+            : 't-btn-secondary'
         "
         title="항상 위"
         aria-label="항상 위 토글"
@@ -37,8 +37,8 @@
         class="h-8 w-8 inline-flex items-center justify-center rounded border transition-colors"
         :class="
           miniMode
-            ? 'bg-[#00694D] border-[#00694D] text-white'
-            : 'bg-zinc-800 border-zinc-800 hover:bg-zinc-700 hover:border-zinc-700 text-zinc-100'
+            ? 't-btn-primary border-transparent'
+            : 't-btn-secondary'
         "
         title="미니 모드"
         aria-label="미니 모드 토글"
@@ -60,12 +60,45 @@
           />
         </svg>
       </button>
+
+      <button
+        class="h-8 w-8 inline-flex items-center justify-center rounded border transition-colors t-btn-secondary"
+        :title="theme === 'dark' ? '라이트 모드' : '다크 모드'"
+        aria-label="테마 전환"
+        @click="onToggleTheme"
+      >
+        <!-- sun/moon -->
+        <svg v-if="theme === 'dark'" width="18" height="18" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+          <path
+            d="M12 18a6 6 0 1 0 0-12 6 6 0 0 0 0 12Z"
+            stroke="currentColor"
+            stroke-width="1.8"
+            stroke-linecap="round"
+            stroke-linejoin="round"
+          />
+          <path
+            d="M12 2v2M12 20v2M4 12H2M22 12h-2M5.6 5.6 4.2 4.2M19.8 19.8l-1.4-1.4M18.4 5.6l1.4-1.4M4.2 19.8l1.4-1.4"
+            stroke="currentColor"
+            stroke-width="1.8"
+            stroke-linecap="round"
+          />
+        </svg>
+        <svg v-else width="18" height="18" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+          <path
+            d="M21 14.5A8.5 8.5 0 0 1 9.5 3 7 7 0 1 0 21 14.5Z"
+            stroke="currentColor"
+            stroke-width="1.8"
+            stroke-linejoin="round"
+          />
+        </svg>
+      </button>
     </div>
   </div>
 </template>
 
 <script setup lang="ts">
 import { onMounted, ref } from "vue";
+import { getActiveTheme, toggleTheme, type ThemeMode } from "../theme";
 
 declare global {
   interface Window {
@@ -79,8 +112,10 @@ declare global {
 
 const alwaysOnTop = ref(false);
 const miniMode = ref(false);
+const theme = ref<ThemeMode>("dark");
 
 onMounted(async () => {
+  theme.value = getActiveTheme();
   try {
     const s = await window.jarvisDesktop?.getWindowState?.();
     if (s) {
@@ -91,6 +126,10 @@ onMounted(async () => {
     // ignore
   }
 });
+
+function onToggleTheme() {
+  theme.value = toggleTheme();
+}
 
 async function toggleAlwaysOnTop() {
   try {

@@ -1,14 +1,14 @@
 <template>
   <div class="h-full flex flex-col min-h-0">
-    <div class="p-3 border-b border-zinc-800">
+    <div class="p-3 border-b t-border">
       <div class="space-y-2">
         <div class="flex items-center justify-between">
-          <div class="text-xs text-zinc-400">{{ store.user?.name }}</div>
+          <div class="text-xs t-text-muted">{{ store.user?.name }}</div>
           <div class="flex items-center gap-2 pr-8">
-            <button class="px-2 py-1 text-xs rounded bg-zinc-800 hover:bg-zinc-700" @click="createRoom">
+            <button class="px-2 py-1 text-xs rounded t-btn-secondary" @click="createRoom">
               방 만들기
             </button>
-            <button class="px-2 py-1 text-xs rounded bg-zinc-800 hover:bg-zinc-700" @click="store.reloadRooms">
+            <button class="px-2 py-1 text-xs rounded t-btn-secondary" @click="store.reloadRooms">
               새로고침
             </button>
           </div>
@@ -17,12 +17,12 @@
         <div class="relative">
           <input
             v-model="roomSearch"
-            class="w-full px-3 py-2 text-sm rounded bg-zinc-900 border border-zinc-800 focus:outline-none focus:border-[#00AD50]"
+            class="w-full px-3 py-2 text-sm rounded t-input"
             placeholder="메시지 내용으로 방 검색"
           />
           <button
             v-if="roomSearch.trim().length"
-            class="absolute right-2 top-1/2 -translate-y-1/2 px-2 py-1 text-xs rounded bg-zinc-800 hover:bg-zinc-700 text-zinc-100"
+            class="absolute right-2 top-1/2 -translate-y-1/2 px-2 py-1 text-xs rounded t-btn-secondary"
             @click="clearSearch"
             title="검색 초기화"
           >
@@ -33,48 +33,48 @@
     </div>
 
     <div class="flex-1 overflow-auto">
-      <div v-if="!store.rooms.length" class="p-3 text-xs text-zinc-500">
+      <div v-if="!store.rooms.length" class="p-3 text-xs t-text-subtle">
         방이 없습니다. 우측 상단의 '방 만들기'로 생성하세요.
       </div>
-      <div v-else-if="roomSearch.trim() && searching" class="p-3 text-xs text-zinc-500">검색 중...</div>
-      <div v-else-if="roomSearch.trim() && !searching && filteredRooms.length === 0" class="p-3 text-xs text-zinc-500">
+      <div v-else-if="roomSearch.trim() && searching" class="p-3 text-xs t-text-subtle">검색 중...</div>
+      <div v-else-if="roomSearch.trim() && !searching && filteredRooms.length === 0" class="p-3 text-xs t-text-subtle">
         검색 결과가 없습니다.
       </div>
       <button
         v-for="r in filteredRooms"
         :key="r.id"
-        class="w-full text-left px-3 py-2 border-b border-zinc-900 hover:bg-zinc-900"
-        :class="store.activeRoomId === r.id ? 'bg-zinc-900/70' : ''"
+        class="w-full text-left px-3 py-2 border-b t-border t-row"
+        :class="store.activeRoomId === r.id ? 't-row-active' : ''"
         @click="store.openRoom(r.id)"
       >
         <div class="flex items-center justify-between gap-2">
           <div class="text-sm font-medium truncate">{{ r.title }}</div>
           <div
-            class="shrink-0 text-[11px] px-2 py-0.5 rounded-full border border-zinc-800 bg-zinc-900 text-zinc-200"
+            class="shrink-0 text-[11px] px-2 py-0.5 rounded-full border t-chip"
             :title="`참여자 수: ${getMemberCount(r) ?? '0'}명`"
           >
             {{ getMemberCount(r) ?? "0" }}
           </div>
         </div>
-        <div class="text-xs text-zinc-500">{{ r.type }} · {{ r.id.slice(0, 8) }}</div>
+        <div class="text-xs t-text-subtle">{{ r.type }} · {{ r.id.slice(0, 8) }}</div>
       </button>
     </div>
   </div>
 
   <CommonModal :open="createRoomOpen" title="채팅방 만들기" @close="closeCreateRoom">
     <div class="space-y-2">
-      <div class="text-xs text-zinc-400">방 이름</div>
+      <div class="text-xs t-text-muted">방 이름</div>
       <input
         v-model="createRoomTitle"
-        class="w-full px-3 py-2 text-sm rounded bg-zinc-900 border border-zinc-800 focus:outline-none focus:border-[#00AD50]"
+        class="w-full px-3 py-2 text-sm rounded t-input"
         placeholder="예: Incident 대응"
         @keydown.enter="submitCreateRoom"
       />
     </div>
     <template #footer>
       <div class="flex items-center justify-end gap-2">
-        <button class="px-3 py-2 text-sm rounded bg-zinc-800 hover:bg-zinc-700" @click="closeCreateRoom">취소</button>
-        <button class="px-3 py-2 text-sm rounded bg-[#00694D] hover:bg-[#005a42] text-white" @click="submitCreateRoom">
+        <button class="px-3 py-2 text-sm rounded t-btn-secondary" @click="closeCreateRoom">취소</button>
+        <button class="px-3 py-2 text-sm rounded t-btn-primary" @click="submitCreateRoom">
           생성
         </button>
       </div>

@@ -5,16 +5,16 @@
       <div class="absolute inset-0 flex items-center justify-center p-4" @keydown.esc="emitClose">
         <div
           ref="panel"
-          class="w-full max-w-xl rounded-lg border border-zinc-800 bg-zinc-950 shadow-2xl"
+          class="w-full max-w-xl rounded-lg border t-border t-surface shadow-2xl"
           role="dialog"
           aria-modal="true"
           :aria-label="title || 'dialog'"
           tabindex="-1"
         >
-          <div class="flex items-center justify-between gap-3 px-4 py-3 border-b border-zinc-800">
-            <div class="text-sm font-semibold text-zinc-100 truncate">{{ title }}</div>
+          <div class="flex items-center justify-between gap-3 px-4 py-3 border-b t-border">
+            <div class="text-sm font-semibold truncate">{{ title }}</div>
             <button
-              class="px-2 py-1 text-xs rounded bg-zinc-800 hover:bg-zinc-700 text-zinc-100"
+              class="px-2 py-1 text-xs rounded t-btn-secondary"
               @click="emitClose"
             >
               닫기
@@ -25,7 +25,7 @@
             <slot />
           </div>
 
-          <div v-if="$slots.footer" class="px-4 py-3 border-t border-zinc-800">
+          <div v-if="$slots.footer" class="px-4 py-3 border-t t-border">
             <slot name="footer" />
           </div>
         </div>

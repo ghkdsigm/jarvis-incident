@@ -3,8 +3,18 @@ import { createRoom, devLogin, fetchRooms, fetchMessages } from "../api/http";
 import { WsClient } from "../api/ws";
 import type { MessageDto } from "@jarvis/shared";
 
+const LS_AUTOLOGIN = "jarvis.desktop.autologin";
+const LS_DEVCREDS = "jarvis.desktop.devCreds";
+
+type DevCreds = { email: string; name: string };
+
 export const useSessionStore = defineStore("session", {
   state: () => ({
+    authReady: false as boolean,
+    autoLoginEnabled: false as boolean,
+    savedEmail: "" as string,
+    savedName: "" as string,
+
     token: "" as string,
     user: null as any,
     rooms: [] as any[],
@@ -30,6 +40,65 @@ export const useSessionStore = defineStore("session", {
     }
   },
   actions: {
+    async initAuth() {
+      if (this.authReady) return;
+      try {
+        const rawAuto = localStorage.getItem(LS_AUTOLOGIN);
+        this.autoLoginEnabled = rawAuto === "1";
+      } catch {
+        this.autoLoginEnabled = false;
+      }
+
+      try {
+        const raw = localStorage.getItem(LS_DEVCREDS);
+        const parsed = raw ? (JSON.parse(raw) as DevCreds) : null;
+        this.savedEmail = parsed?.email ?? "";
+        this.savedName = parsed?.name ?? "";
+      } catch {
+        this.savedEmail = "";
+        this.savedName = "";
+      }
+
+      if (this.autoLoginEnabled && this.savedEmail && this.savedName) {
+        try {
+          await this.login(this.savedEmail, this.savedName);
+        } catch {
+          // ignore autologin failures; user will login manually
+        }
+      }
+
+      this.authReady = true;
+    },
+
+    async loginDev(email: string, name: string, remember: boolean) {
+      this.autoLoginEnabled = remember;
+      try {
+        localStorage.setItem(LS_AUTOLOGIN, remember ? "1" : "0");
+      } catch {
+        // ignore
+      }
+
+      if (remember) {
+        this.savedEmail = email;
+        this.savedName = name;
+        try {
+          localStorage.setItem(LS_DEVCREDS, JSON.stringify({ email, name } satisfies DevCreds));
+        } catch {
+          // ignore
+        }
+      } else {
+        this.savedEmail = "";
+        this.savedName = "";
+        try {
+          localStorage.removeItem(LS_DEVCREDS);
+        } catch {
+          // ignore
+        }
+      }
+
+      await this.login(email, name);
+    },
+
     async login(email: string, name: string) {
       const { token, user } = await devLogin(email, name);
       this.token = token;
@@ -42,6 +111,23 @@ export const useSessionStore = defineStore("session", {
         if (this.activeRoomId) this.ws?.send({ type: "room.join", roomId: this.activeRoomId });
       });
       await this.reloadRooms();
+    },
+
+    logout() {
+      try {
+        // best-effort close socket if exists
+        (this.ws as any)?.ws?.close?.();
+      } catch {
+        // ignore
+      }
+      this.ws = null;
+      this.token = "";
+      this.user = null;
+      this.rooms = [];
+      this.activeRoomId = "";
+      this.messagesByRoom = {};
+      this.joinedByRoom = {};
+      this.cleanupRtc(true);
     },
 
     async ensureRoomMessages(roomId: string, take = 200): Promise<MessageDto[]> {

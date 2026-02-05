@@ -1,19 +1,9 @@
 <template>
   <div class="h-full flex flex-col min-h-0">
     <div class="p-3 border-b border-zinc-800">
-      <div v-if="!store.token" class="space-y-2">
-        <div class="text-sm text-zinc-300">개발 로그인</div>
-        <input v-model="email" class="w-full px-3 py-2 text-sm rounded bg-zinc-900 border border-zinc-800" placeholder="email" />
-        <input v-model="name" class="w-full px-3 py-2 text-sm rounded bg-zinc-900 border border-zinc-800" placeholder="name" />
-        <button class="w-full px-3 py-2 text-sm rounded bg-[#00694D] hover:bg-[#005a42] text-white" @click="login">
-          로그인
-        </button>
-      </div>
-
-      <div v-else class="space-y-2">
+      <div class="space-y-2">
         <div class="flex items-center justify-between">
-          <!-- <div class="text-xs text-zinc-400">{{ store.user?.email }}</div> -->
-           <div class="text-xs text-zinc-400">{{ store.user?.name }}</div>
+          <div class="text-xs text-zinc-400">{{ store.user?.name }}</div>
           <div class="flex items-center gap-2 pr-8">
             <button class="px-2 py-1 text-xs rounded bg-zinc-800 hover:bg-zinc-700" @click="createRoom">
               방 만들기
@@ -43,11 +33,11 @@
     </div>
 
     <div class="flex-1 overflow-auto">
-      <div v-if="store.token && !store.rooms.length" class="p-3 text-xs text-zinc-500">
+      <div v-if="!store.rooms.length" class="p-3 text-xs text-zinc-500">
         방이 없습니다. 우측 상단의 '방 만들기'로 생성하세요.
       </div>
-      <div v-else-if="store.token && roomSearch.trim() && searching" class="p-3 text-xs text-zinc-500">검색 중...</div>
-      <div v-else-if="store.token && roomSearch.trim() && !searching && filteredRooms.length === 0" class="p-3 text-xs text-zinc-500">
+      <div v-else-if="roomSearch.trim() && searching" class="p-3 text-xs text-zinc-500">검색 중...</div>
+      <div v-else-if="roomSearch.trim() && !searching && filteredRooms.length === 0" class="p-3 text-xs text-zinc-500">
         검색 결과가 없습니다.
       </div>
       <button
@@ -98,8 +88,6 @@ import { useSessionStore } from "../stores/session";
 import CommonModal from "./ui/CommonModal.vue";
 
 const store = useSessionStore();
-const email = ref("dev1@local");
-const name = ref("Dev 1");
 
 const createRoomOpen = ref(false);
 const createRoomTitle = ref("");
@@ -178,10 +166,6 @@ watch(
   },
   { flush: "post" }
 );
-
-async function login() {
-  await store.login(email.value, name.value);
-}
 
 async function createRoom() {
   createRoomTitle.value = "";

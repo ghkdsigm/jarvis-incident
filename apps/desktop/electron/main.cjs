@@ -60,6 +60,10 @@ app.whenReady().then(() => {
     mainWindow.focus();
   });
 
+  ipcMain.handle("getWindowState", () => {
+    return { alwaysOnTop, miniMode };
+  });
+
   ipcMain.handle("toggleAlwaysOnTop", () => {
     if (!mainWindow) return;
     alwaysOnTop = !alwaysOnTop;

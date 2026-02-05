@@ -120,7 +120,7 @@
       </div>
     </div>
 
-    <div ref="scroller" class="flex-1 overflow-auto p-3 space-y-2">
+    <div ref="scroller" class="flex-1 overflow-auto p-3 space-y-2" :style="{ opacity: String(chatOpacity) }">
       <div v-for="m in store.activeMessages" :key="m.id" class="w-full">
         <div class="flex" :class="bubbleWrapClass(m)">
           <div class="max-w-[72%] min-w-0">
@@ -172,6 +172,26 @@
     </div>
 
     <div class="p-3 border-t border-zinc-800 bg-zinc-950">
+      <div class="mb-2 flex items-center gap-3">
+        <div class="text-xs text-zinc-500 shrink-0">Opacity</div>
+        <input
+          v-model.number="chatOpacity"
+          type="range"
+          min="0"
+          max="1"
+          step="0.05"
+          class="flex-1 chat-opacity-range"
+          aria-label="채팅 투명도 조절"
+        />
+        <div class="text-xs text-zinc-400 w-10 text-right tabular-nums">{{ Math.round(chatOpacity * 100) }}%</div>
+        <button
+          class="px-2 py-1 text-xs rounded bg-zinc-800 hover:bg-zinc-700 text-zinc-100"
+          title="투명도 초기화"
+          @click="resetOpacity"
+        >
+          Reset
+        </button>
+      </div>
       <div class="flex gap-2">
         <input
           v-model="text"
@@ -332,6 +352,38 @@ const remoteVideo = ref<HTMLVideoElement | null>(null);
 const localVideo = ref<HTMLVideoElement | null>(null);
 
 const DELETED_PLACEHOLDER = "(삭제된 메시지)";
+const LS_CHAT_OPACITY = "jarvis.desktop.chatOpacity";
+
+function clamp01(n: number) {
+  if (!Number.isFinite(n)) return 1;
+  return Math.max(0, Math.min(1, n));
+}
+
+const chatOpacity = ref<number>(1);
+try {
+  const raw = localStorage.getItem(LS_CHAT_OPACITY);
+  if (raw != null) chatOpacity.value = clamp01(Number(raw));
+} catch {
+  // ignore
+}
+
+watch(
+  chatOpacity,
+  (v) => {
+    const next = clamp01(v);
+    if (next !== v) chatOpacity.value = next;
+    try {
+      localStorage.setItem(LS_CHAT_OPACITY, String(next));
+    } catch {
+      // ignore
+    }
+  },
+  { flush: "post" }
+);
+
+function resetOpacity() {
+  chatOpacity.value = 1;
+}
 
 const jarvisOpen = ref(false);
 const jarvisPrompt = ref("");
@@ -578,3 +630,45 @@ watch(
   }
 );
 </script>
+
+<style scoped>
+.chat-opacity-range {
+  -webkit-appearance: none;
+  appearance: none;
+  height: 4px;
+  border-radius: 9999px;
+  background: #27272a; /* zinc-800 */
+  outline: none;
+}
+
+.chat-opacity-range::-webkit-slider-runnable-track {
+  height: 4px;
+  border-radius: 9999px;
+  background: #27272a; /* zinc-800 */
+}
+
+.chat-opacity-range::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 12px;
+  height: 12px;
+  margin-top: -4px; /* center thumb on 4px track */
+  border-radius: 9999px;
+  background: #00ad50;
+  border: 2px solid #0a0a0a;
+}
+
+.chat-opacity-range::-moz-range-track {
+  height: 4px;
+  border-radius: 9999px;
+  background: #27272a; /* zinc-800 */
+}
+
+.chat-opacity-range::-moz-range-thumb {
+  width: 12px;
+  height: 12px;
+  border-radius: 9999px;
+  background: #00ad50;
+  border: 2px solid #0a0a0a;
+}
+</style>

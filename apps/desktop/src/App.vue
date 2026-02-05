@@ -1,5 +1,7 @@
 <template>
-  <div class="w-screen h-screen flex flex-col">
+  <LoginView v-if="store.authReady && !store.token" />
+
+  <div v-else-if="store.authReady && store.token" class="w-screen h-screen flex flex-col">
     <TopBar />
     <div class="flex-1 flex min-h-0">
       <aside
@@ -41,13 +43,21 @@
       </main>
     </div>
   </div>
+
+  <div v-else class="w-screen h-screen flex items-center justify-center bg-zinc-950 text-zinc-400 text-sm">
+    세션 확인 중...
+  </div>
 </template>
 
 <script setup lang="ts">
-import { onBeforeUnmount, ref } from "vue";
+import { onBeforeUnmount, onMounted, ref } from "vue";
 import TopBar from "./components/TopBar.vue";
 import RoomList from "./components/RoomList.vue";
 import ChatPanel from "./components/ChatPanel.vue";
+import LoginView from "./components/LoginView.vue";
+import { useSessionStore } from "./stores/session";
+
+const store = useSessionStore();
 
 const collapsedWidth = 44;
 const sidebarCollapsed = ref(false);
@@ -87,5 +97,9 @@ function onResizeEnd() {
 
 onBeforeUnmount(() => {
   window.removeEventListener("pointermove", onResizeMove);
+});
+
+onMounted(() => {
+  store.initAuth();
 });
 </script>

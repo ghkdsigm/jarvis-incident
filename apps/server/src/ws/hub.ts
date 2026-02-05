@@ -98,6 +98,44 @@ export async function registerWs(app: FastifyInstance) {
         return;
       }
 
+      if (msg.type === "room.leave") {
+        const roomId = msg.roomId;
+        const membership = await prisma.roomMember.findUnique({
+          where: { roomId_userId: { roomId, userId: conn.userId } }
+        });
+        if (!membership) {
+          connection.socket.send(JSON.stringify({ type: "error", payload: { message: "FORBIDDEN" } }));
+          return;
+        }
+
+        // Owner가 단독 멤버가 아니라면 나가기 금지 (간단 정책)
+        if (membership.role === "owner") {
+          const memberCount = await prisma.roomMember.count({ where: { roomId } });
+          if (memberCount > 1) {
+            connection.socket.send(JSON.stringify({ type: "error", payload: { message: "OWNER_CANNOT_LEAVE" } }));
+            return;
+          }
+        }
+
+        await prisma.roomMember.delete({
+          where: { roomId_userId: { roomId, userId: conn.userId } }
+        });
+
+        // Remove this socket from in-memory room subscription
+        conn.rooms.delete(roomId);
+        roomIndex.get(roomId)?.delete(conn);
+        if (roomIndex.get(roomId)?.size === 0) roomIndex.delete(roomId);
+
+        // If no members remain, delete the room (cascade cleans messages)
+        const remain = await prisma.roomMember.count({ where: { roomId } });
+        if (remain === 0) {
+          await prisma.room.delete({ where: { id: roomId } });
+        }
+
+        connection.socket.send(JSON.stringify({ type: "room.left", payload: { roomId } }));
+        return;
+      }
+
       if (msg.type === "message.send") {
         const roomId = msg.roomId;
         if (!conn.rooms.has(roomId)) {

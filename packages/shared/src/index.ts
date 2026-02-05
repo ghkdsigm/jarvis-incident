@@ -10,6 +10,11 @@ export const WsJoinRoomSchema = z.object({
   roomId: z.string()
 });
 
+export const WsLeaveRoomSchema = z.object({
+  type: z.literal("room.leave"),
+  roomId: z.string()
+});
+
 export const WsSendMessageSchema = z.object({
   type: z.literal("message.send"),
   roomId: z.string(),
@@ -74,6 +79,7 @@ export const WsRtcHangupSchema = z.object({
 export const WsClientMessageSchema = z.discriminatedUnion("type", [
   WsClientHelloSchema,
   WsJoinRoomSchema,
+  WsLeaveRoomSchema,
   WsSendMessageSchema,
   WsEditMessageSchema,
   WsDeleteMessageSchema,
@@ -101,6 +107,7 @@ export type RoomEvent =
   | { type: "bot.stream"; payload: { requestId: string; roomId: string; chunk: string } }
   | { type: "bot.done"; payload: MessageDto }
   | { type: "room.joined"; payload: { roomId: string } }
+  | { type: "room.left"; payload: { roomId: string } }
   | { type: "room.updated"; payload: { roomId: string; title: string } }
   | { type: "room.deleted"; payload: { roomId: string } }
   | { type: "rtc.offer"; payload: { roomId: string; fromUserId: string; sdp: any } }

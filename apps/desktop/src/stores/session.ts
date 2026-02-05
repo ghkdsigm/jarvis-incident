@@ -247,6 +247,18 @@ export const useSessionStore = defineStore("session", {
       }
     },
 
+    moveRoomToTop(roomId: string) {
+      const idx = this.rooms.findIndex((r) => r.id === roomId);
+      if (idx <= 0) return;
+      const room = this.rooms[idx];
+      this.rooms = [room, ...this.rooms.slice(0, idx), ...this.rooms.slice(idx + 1)];
+    },
+
+    leaveRoom(roomId: string) {
+      if (!this.ws) return;
+      this.ws.send({ type: "room.leave", roomId });
+    },
+
     askJarvis(roomId: string, prompt: string) {
       if (!this.ws) return;
       if (!this.joinedByRoom[roomId]) {
@@ -352,6 +364,25 @@ export const useSessionStore = defineStore("session", {
       if (evt.type === "room.joined") {
         const roomId = evt.payload?.roomId as string | undefined;
         if (roomId) this.joinedByRoom[roomId] = true;
+        return;
+      }
+
+      if (evt.type === "room.left") {
+        const p = evt.payload as { roomId: string };
+        if (!p?.roomId) return;
+        const roomId = p.roomId;
+
+        this.rooms = this.rooms.filter((r) => r.id !== roomId);
+        // keep reactivity by replacing objects
+        const { [roomId]: _m, ...restM } = this.messagesByRoom;
+        this.messagesByRoom = restM;
+        const { [roomId]: _j, ...restJ } = this.joinedByRoom;
+        this.joinedByRoom = restJ;
+
+        if (this.activeRoomId === roomId) {
+          this.activeRoomId = "";
+          if (this.rooms.length) this.openRoom(this.rooms[0].id);
+        }
         return;
       }
 

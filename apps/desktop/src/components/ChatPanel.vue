@@ -247,15 +247,95 @@
         </div>
       </div>
       <div class="flex gap-2">
-        <input
-          v-model="text"
-          class="flex-1 px-3 py-2 text-sm rounded t-input"
-          placeholder="메시지 입력 (예: 자비스야 궁금하다 ...)"
-          @keydown.enter="send"
-        />
-        <button class="px-3 py-2 text-sm rounded t-btn-secondary" @click="send">전송</button>
+        <div class="relative flex-1 flex gap-2">
+          <input
+            v-model="text"
+            ref="textInput"
+            class="flex-1 px-3 py-2 text-sm rounded t-input"
+            placeholder="메시지 입력 (예: 자비스야 궁금하다 ...)"
+            @keydown.enter="send"
+            @keydown.esc="closeAllComposerPopovers"
+          />
+          <button
+            ref="attachButton"
+            type="button"
+            class="h-10 w-10 inline-flex items-center justify-center rounded t-btn-secondary shrink-0"
+            title="첨부"
+            aria-label="첨부 열기"
+            @click="toggleAttachMenu"
+          >
+            <span class="text-xl leading-none">+</span>
+          </button>
+          <button
+            ref="emojiButton"
+            type="button"
+            class="h-10 w-10 inline-flex items-center justify-center rounded t-btn-secondary shrink-0"
+            title="이모티콘"
+            aria-label="이모티콘 열기"
+            @click="toggleEmojiPicker"
+          >
+            <span class="text-lg leading-none">😊</span>
+          </button>
+
+          <input ref="imageInput" class="hidden" type="file" accept="image/*" multiple @change="onPickImages" />
+          <input ref="fileInput" class="hidden" type="file" multiple @change="onPickFiles" />
+
+          <div
+            v-if="attachOpen"
+            ref="attachPopover"
+            class="attach-popover absolute bottom-full mb-2 right-0 w-[220px] max-w-[80vw] rounded border t-border t-surface shadow-lg p-2"
+          >
+            <div class="flex items-center justify-between gap-2 mb-2">
+              <div class="text-xs t-text-muted">첨부</div>
+              <button type="button" class="px-2 py-1 text-xs rounded t-btn-secondary" @click="closeAttachMenu">
+                닫기
+              </button>
+            </div>
+            <div class="grid grid-cols-2 gap-2">
+              <button type="button" class="attach-action" @click="openImagePicker">이미지</button>
+              <button type="button" class="attach-action" @click="openFilePicker">파일</button>
+            </div>
+            <div class="mt-2 text-[11px] t-text-subtle">현재는 파일명만 메시지로 첨부됩니다.</div>
+          </div>
+
+          <div
+            v-if="emojiOpen"
+            ref="emojiPopover"
+            class="emoji-popover absolute bottom-full mb-2 left-0 w-[320px] max-w-[80vw] rounded border t-border t-surface shadow-lg p-2"
+          >
+            <div class="flex items-center justify-between gap-2 mb-2">
+              <div class="text-xs t-text-muted">이모티콘</div>
+              <button type="button" class="px-2 py-1 text-xs rounded t-btn-secondary" @click="closeEmojiPicker">
+                닫기
+              </button>
+            </div>
+
+            <div v-if="recentEmojis.length" class="mb-2">
+              <div class="text-[11px] t-text-subtle mb-1">최근</div>
+              <div class="flex flex-wrap gap-1">
+                <button
+                  v-for="e in recentEmojis"
+                  :key="'recent:' + e"
+                  type="button"
+                  class="emoji-chip"
+                  @click="pickEmoji(e)"
+                >
+                  {{ e }}
+                </button>
+              </div>
+            </div>
+
+            <div class="text-[11px] t-text-subtle mb-1">전체</div>
+            <div class="emoji-grid">
+              <button v-for="e in EMOJIS" :key="e" type="button" class="emoji-chip" @click="pickEmoji(e)">
+                {{ e }}
+              </button>
+            </div>
+          </div>
+        </div>
+        <button class="px-6 py-2 text-sm rounded t-btn-secondary" @click="send">전송</button>
         <button
-          class="px-3 py-2 text-sm rounded t-btn-primary inline-flex items-center gap-1.5"
+          class="px-5 py-2 text-sm rounded t-btn-primary inline-flex items-center gap-1.5"
           title="AI에게 질문하기"
           @click="askJarvisQuick"
         >
@@ -291,6 +371,25 @@
           </svg>
           <span class="sr-only">AI 질문</span>
         </button>
+      </div>
+      <div v-if="pendingAttachments.length" class="mt-2 flex flex-wrap gap-2">
+        <div
+          v-for="a in pendingAttachments"
+          :key="a.id"
+          class="attach-chip inline-flex items-center gap-2 px-2 py-1 rounded border t-border"
+        >
+          <img
+            v-if="a.kind === 'image' && a.url"
+            :src="a.url"
+            alt=""
+            class="w-7 h-7 rounded object-cover border t-border"
+          />
+          <span v-else class="text-sm leading-none">📎</span>
+          <span class="text-xs t-text-muted max-w-[220px] truncate">{{ a.file.name }}</span>
+          <button type="button" class="attach-remove" title="삭제" aria-label="첨부 삭제" @click="removeAttachment(a.id)">
+            ×
+          </button>
+        </div>
       </div>
       <div class="mt-2 flex items-center gap-2 text-xs t-text-muted">
         <span>트리거: 메시지가 '자비스야'로 시작하면 자동 호출</span>
@@ -449,13 +548,229 @@
 </template>
 
 <script setup lang="ts">
-import { computed, nextTick, onBeforeUnmount, ref, watch } from "vue";
+import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from "vue";
 import { useSessionStore } from "../stores/session";
 import { isJarvisTrigger, stripJarvisPrefix } from "@jarvis/shared";
 import CommonModal from "./ui/CommonModal.vue";
 
 const store = useSessionStore();
 const text = ref("");
+const textInput = ref<HTMLInputElement | null>(null);
+const emojiOpen = ref(false);
+const emojiPopover = ref<HTMLDivElement | null>(null);
+const emojiButton = ref<HTMLButtonElement | null>(null);
+const attachOpen = ref(false);
+const attachPopover = ref<HTMLDivElement | null>(null);
+const attachButton = ref<HTMLButtonElement | null>(null);
+const imageInput = ref<HTMLInputElement | null>(null);
+const fileInput = ref<HTMLInputElement | null>(null);
+const LS_RECENT_EMOJIS = "jarvis.desktop.recentEmojis";
+const recentEmojis = ref<string[]>([]);
+
+const EMOJIS = [
+  "😀",
+  "😃",
+  "😄",
+  "😁",
+  "😆",
+  "😅",
+  "🤣",
+  "😂",
+  "🙂",
+  "🙃",
+  "😉",
+  "😊",
+  "😍",
+  "😘",
+  "😗",
+  "😙",
+  "😚",
+  "😋",
+  "😛",
+  "😜",
+  "🤪",
+  "😎",
+  "🤓",
+  "🫡",
+  "🤔",
+  "🫢",
+  "😮",
+  "😴",
+  "🤯",
+  "😵‍💫",
+  "😬",
+  "😤",
+  "😭",
+  "😡",
+  "🤝",
+  "🙏",
+  "👏",
+  "🙌",
+  "💪",
+  "🧠",
+  "🫀",
+  "👀",
+  "✅",
+  "❌",
+  "⚠️",
+  "🔥",
+  "💡",
+  "🧩",
+  "🧪",
+  "🛠️",
+  "🧰",
+  "🧯",
+  "📌",
+  "📎",
+  "📝",
+  "📣",
+  "📞",
+  "⏰",
+  "📅",
+  "🔍",
+  "🔗",
+  "🧭",
+  "🚨",
+  "🆘",
+  "📈",
+  "📉",
+  "🟢",
+  "🟡",
+  "🔴",
+  "🧑‍💻",
+  "🤖"
+] as const;
+
+function loadRecentEmojis() {
+  try {
+    const raw = localStorage.getItem(LS_RECENT_EMOJIS);
+    if (!raw) return;
+    const v = JSON.parse(raw);
+    if (Array.isArray(v)) recentEmojis.value = v.filter((x) => typeof x === "string").slice(0, 24);
+  } catch {
+    // ignore
+  }
+}
+
+function saveRecentEmojis() {
+  try {
+    localStorage.setItem(LS_RECENT_EMOJIS, JSON.stringify(recentEmojis.value.slice(0, 24)));
+  } catch {
+    // ignore
+  }
+}
+
+function closeEmojiPicker() {
+  emojiOpen.value = false;
+}
+
+function toggleEmojiPicker() {
+  closeAttachMenu();
+  emojiOpen.value = !emojiOpen.value;
+}
+
+function closeAttachMenu() {
+  attachOpen.value = false;
+}
+
+function toggleAttachMenu() {
+  closeEmojiPicker();
+  attachOpen.value = !attachOpen.value;
+}
+
+function closeAllComposerPopovers() {
+  closeEmojiPicker();
+  closeAttachMenu();
+}
+
+function insertAtCursor(s: string) {
+  const el = textInput.value;
+  if (!el) {
+    text.value = (text.value ?? "") + s;
+    return;
+  }
+  const v = text.value ?? "";
+  const start = el.selectionStart ?? v.length;
+  const end = el.selectionEnd ?? v.length;
+  const next = v.slice(0, start) + s + v.slice(end);
+  text.value = next;
+  nextTick(() => {
+    el.focus();
+    const pos = start + s.length;
+    try {
+      el.setSelectionRange(pos, pos);
+    } catch {
+      // ignore
+    }
+  });
+}
+
+function pushRecentEmoji(e: string) {
+  const next = [e, ...recentEmojis.value.filter((x) => x !== e)].slice(0, 24);
+  recentEmojis.value = next;
+  saveRecentEmojis();
+}
+
+function pickEmoji(e: string) {
+  insertAtCursor(e);
+  pushRecentEmoji(e);
+  closeEmojiPicker();
+}
+
+type PendingAttachment = { id: string; file: File; kind: "image" | "file"; url?: string };
+const pendingAttachments = ref<PendingAttachment[]>([]);
+
+function makeId() {
+  return `${Date.now()}-${Math.random().toString(16).slice(2)}`;
+}
+
+function addAttachment(file: File, kind: "image" | "file") {
+  const id = makeId();
+  const a: PendingAttachment = { id, file, kind };
+  if (kind === "image") a.url = URL.createObjectURL(file);
+  pendingAttachments.value = [...pendingAttachments.value, a];
+}
+
+function removeAttachment(id: string) {
+  const list = pendingAttachments.value;
+  const idx = list.findIndex((x) => x.id === id);
+  if (idx < 0) return;
+  const target = list[idx];
+  if (target.url) URL.revokeObjectURL(target.url);
+  const next = [...list.slice(0, idx), ...list.slice(idx + 1)];
+  pendingAttachments.value = next;
+}
+
+function clearAttachments() {
+  for (const a of pendingAttachments.value) {
+    if (a.url) URL.revokeObjectURL(a.url);
+  }
+  pendingAttachments.value = [];
+}
+
+function openImagePicker() {
+  closeAttachMenu();
+  imageInput.value?.click();
+}
+
+function openFilePicker() {
+  closeAttachMenu();
+  fileInput.value?.click();
+}
+
+function onPickImages(ev: Event) {
+  const el = ev.target as HTMLInputElement;
+  const files = Array.from(el.files ?? []);
+  for (const f of files) addAttachment(f, "image");
+  el.value = "";
+}
+
+function onPickFiles(ev: Event) {
+  const el = ev.target as HTMLInputElement;
+  const files = Array.from(el.files ?? []);
+  for (const f of files) addAttachment(f, "file");
+  el.value = "";
+}
 const scroller = ref<HTMLDivElement | null>(null);
 const remoteVideo = ref<HTMLVideoElement | null>(null);
 const localVideo = ref<HTMLVideoElement | null>(null);
@@ -699,6 +1014,34 @@ onBeforeUnmount(() => {
   }
 });
 
+function onDocPointerDown(ev: PointerEvent) {
+  const t = ev.target as Node | null;
+  if (!t) return;
+
+  if (emojiOpen.value) {
+    if (!emojiPopover.value?.contains(t) && !emojiButton.value?.contains(t)) closeEmojiPicker();
+  }
+  if (attachOpen.value) {
+    if (!attachPopover.value?.contains(t) && !attachButton.value?.contains(t)) closeAttachMenu();
+  }
+}
+
+function onDocKeyDown(ev: KeyboardEvent) {
+  if (ev.key === "Escape") closeAllComposerPopovers();
+}
+
+onMounted(() => {
+  loadRecentEmojis();
+  document.addEventListener("pointerdown", onDocPointerDown);
+  document.addEventListener("keydown", onDocKeyDown);
+});
+
+onBeforeUnmount(() => {
+  document.removeEventListener("pointerdown", onDocPointerDown);
+  document.removeEventListener("keydown", onDocKeyDown);
+  clearAttachments();
+});
+
 type Colleague = { id: string; team: string; name: string; role: string; tags: string[] };
 const inviteOpen = ref(false);
 const inviteQuery = ref("");
@@ -844,13 +1187,28 @@ function scrollToBottom() {
 }
 
 async function send() {
-  if (!store.activeRoomId || !text.value.trim()) return;
-  const content = text.value.trim();
+  if (!store.activeRoomId) return;
+  const base = text.value.trim();
+  if (!base && pendingAttachments.value.length === 0) return;
+
+  const lines: string[] = [];
+  if (base) lines.push(base);
+  if (pendingAttachments.value.length) {
+    lines.push(
+      ...pendingAttachments.value.map((a) => {
+        const icon = a.kind === "image" ? "🖼️" : "📎";
+        return `[첨부] ${icon} ${a.file.name}`;
+      })
+    );
+  }
+
+  const content = lines.join("\n");
   store.sendMessage(store.activeRoomId, content);
-  if (isJarvisTrigger(content)) {
-    store.askJarvis(store.activeRoomId, stripJarvisPrefix(content));
+  if (isJarvisTrigger(base || content)) {
+    store.askJarvis(store.activeRoomId, stripJarvisPrefix(base || content));
   }
   text.value = "";
+  clearAttachments();
   await nextTick();
   scrollToBottom();
 }
@@ -950,6 +1308,65 @@ watch(
   background: var(--range-track);
   outline: none;
   cursor: pointer;
+}
+
+.emoji-popover {
+  user-select: none;
+}
+.attach-popover {
+  user-select: none;
+}
+.attach-action {
+  height: 36px;
+  border-radius: 10px;
+  border: 1px solid var(--border);
+  background: var(--surface-2);
+  cursor: pointer;
+  font-size: 12px;
+  color: var(--text-muted);
+}
+.attach-action:hover {
+  background: var(--row-hover);
+}
+.attach-chip {
+  background: var(--surface-2);
+}
+.attach-remove {
+  width: 22px;
+  height: 22px;
+  border-radius: 6px;
+  border: 1px solid var(--border);
+  background: transparent;
+  cursor: pointer;
+  line-height: 1;
+  color: var(--text-muted);
+}
+.attach-remove:hover {
+  background: var(--row-hover);
+}
+.emoji-grid {
+  display: grid;
+  grid-template-columns: repeat(10, minmax(0, 1fr));
+  gap: 4px;
+  max-height: 240px;
+  overflow: auto;
+  padding-right: 2px;
+}
+.emoji-chip {
+  height: 28px;
+  width: 28px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 8px;
+  border: 1px solid var(--border);
+  background: var(--surface-2);
+  cursor: pointer;
+  font-size: 16px;
+  line-height: 1;
+}
+.emoji-chip:hover {
+  background: var(--row-hover);
 }
 
 .chat-opacity-range::-webkit-slider-runnable-track {

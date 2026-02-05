@@ -1,15 +1,7 @@
-// NOTE:
-// 이 파일(`main.ts`)은 Electron 런타임에서 그대로 실행할 수 없어(dev/prod 모두)
-// 현재 엔트리는 `main.cjs`를 사용합니다.
-// - package.json: main = electron/main.cjs
-// - electron-builder.json: extraMetadata.main = electron/main.cjs
-//
-// (원하면 추후 TS 빌드 파이프라인을 추가해 다시 사용 가능합니다.)
+const { app, BrowserWindow, ipcMain, globalShortcut } = require("electron");
+const path = require("node:path");
 
-import { app, BrowserWindow, ipcMain, globalShortcut } from "electron";
-import path from "node:path";
-
-let mainWindow: BrowserWindow | null = null;
+let mainWindow = null;
 let alwaysOnTop = true;
 let miniMode = false;
 
@@ -26,8 +18,11 @@ function createWindow() {
     }
   });
 
-  if (process.env.VITE_DEV_SERVER_URL) {
-    mainWindow.loadURL(process.env.VITE_DEV_SERVER_URL);
+  // Dev에서는 Vite dev server를 로드합니다.
+  // `VITE_DEV_SERVER_URL`이 없을 때를 대비해 기본 포트를 사용합니다.
+  if (!app.isPackaged) {
+    const devUrl = process.env.VITE_DEV_SERVER_URL || "http://localhost:5173";
+    mainWindow.loadURL(devUrl);
     mainWindow.webContents.openDevTools({ mode: "detach" });
   } else {
     mainWindow.loadFile(path.join(__dirname, "../dist/index.html"));
@@ -40,11 +35,15 @@ function createWindow() {
 
 function applyMiniMode() {
   if (!mainWindow) return;
+
   if (miniMode) {
     mainWindow.setAlwaysOnTop(true, "floating");
     mainWindow.setResizable(true);
+
+    // IMPORTANT: minimum size를 먼저 낮춰야 setSize가 먹습니다.
     mainWindow.setMinimumSize(360, 420);
     mainWindow.setSize(420, 560);
+
     mainWindow.setSkipTaskbar(false);
   } else {
     mainWindow.setSize(980, 720);
@@ -82,3 +81,4 @@ app.whenReady().then(() => {
 app.on("window-all-closed", () => {
   if (process.platform !== "darwin") app.quit();
 });
+

@@ -9,7 +9,7 @@
     "electron/**"
   ],
   "extraMetadata": {
-    "main": "electron/main.ts"
+    "main": "electron/main.cjs"
   },
   "win": {
     "target": ["nsis"]

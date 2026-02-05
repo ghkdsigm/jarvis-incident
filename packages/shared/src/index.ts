@@ -17,11 +17,35 @@ export const WsSendMessageSchema = z.object({
   content: z.string().min(1)
 });
 
+export const WsEditMessageSchema = z.object({
+  type: z.literal("message.edit"),
+  roomId: z.string(),
+  messageId: z.string(),
+  content: z.string().min(1)
+});
+
+export const WsDeleteMessageSchema = z.object({
+  type: z.literal("message.delete"),
+  roomId: z.string(),
+  messageId: z.string()
+});
+
 export const WsJarvisRequestSchema = z.object({
   type: z.literal("jarvis.request"),
   roomId: z.string(),
   messageId: z.string().optional(),
   prompt: z.string().min(1)
+});
+
+export const WsRoomRenameSchema = z.object({
+  type: z.literal("room.rename"),
+  roomId: z.string(),
+  title: z.string().min(1)
+});
+
+export const WsRoomDeleteSchema = z.object({
+  type: z.literal("room.delete"),
+  roomId: z.string()
 });
 
 export const WsRtcOfferSchema = z.object({
@@ -51,7 +75,11 @@ export const WsClientMessageSchema = z.discriminatedUnion("type", [
   WsClientHelloSchema,
   WsJoinRoomSchema,
   WsSendMessageSchema,
+  WsEditMessageSchema,
+  WsDeleteMessageSchema,
   WsJarvisRequestSchema,
+  WsRoomRenameSchema,
+  WsRoomDeleteSchema,
   WsRtcOfferSchema,
   WsRtcAnswerSchema,
   WsRtcIceSchema,
@@ -68,9 +96,13 @@ export type WsServerMessage = z.infer<typeof WsServerMessageSchema>;
 
 export type RoomEvent =
   | { type: "message.new"; payload: MessageDto }
+  | { type: "message.updated"; payload: MessageDto }
+  | { type: "message.deleted"; payload: { roomId: string; messageId: string } }
   | { type: "bot.stream"; payload: { requestId: string; roomId: string; chunk: string } }
   | { type: "bot.done"; payload: MessageDto }
   | { type: "room.joined"; payload: { roomId: string } }
+  | { type: "room.updated"; payload: { roomId: string; title: string } }
+  | { type: "room.deleted"; payload: { roomId: string } }
   | { type: "rtc.offer"; payload: { roomId: string; fromUserId: string; sdp: any } }
   | { type: "rtc.answer"; payload: { roomId: string; fromUserId: string; sdp: any } }
   | { type: "rtc.ice"; payload: { roomId: string; fromUserId: string; candidate: any } }

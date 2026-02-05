@@ -1,11 +1,42 @@
 <template>
   <div class="w-screen h-screen flex flex-col">
     <TopBar />
-    <div class="flex-1 grid grid-cols-12 min-h-0">
-      <aside class="col-span-3 border-r border-zinc-800 min-h-0">
-        <RoomList />
+    <div class="flex-1 flex min-h-0">
+      <aside
+        class="border-r border-zinc-800 min-h-0 relative bg-zinc-950"
+        :style="{ width: `${sidebarCollapsed ? collapsedWidth : sidebarWidth}px` }"
+      >
+        <div class="h-full min-h-0">
+          <div v-if="sidebarCollapsed" class="h-full flex items-start justify-center pt-2">
+            <button
+              class="px-2 py-1 text-xs rounded bg-zinc-800 hover:bg-zinc-700 text-zinc-100"
+              @click="toggleSidebar"
+              title="채팅방 리스트 펼치기"
+            >
+              &gt;
+            </button>
+          </div>
+          <div v-else class="h-full min-h-0">
+            <button
+              class="absolute top-3 right-2 z-10 px-2 py-1 text-xs rounded bg-zinc-800 hover:bg-zinc-700 text-zinc-100"
+              @click="toggleSidebar"
+              title="채팅방 리스트 접기"
+            >
+              &lt;
+            </button>
+            <RoomList />
+          </div>
+        </div>
+
+        <div
+          v-if="!sidebarCollapsed"
+          class="absolute top-0 right-0 h-full w-1 cursor-col-resize"
+          @pointerdown="onResizeStart"
+          title="드래그로 폭 조절"
+        />
       </aside>
-      <main class="col-span-9 min-h-0">
+
+      <main class="flex-1 min-h-0">
         <ChatPanel />
       </main>
     </div>
@@ -13,7 +44,48 @@
 </template>
 
 <script setup lang="ts">
+import { onBeforeUnmount, ref } from "vue";
 import TopBar from "./components/TopBar.vue";
 import RoomList from "./components/RoomList.vue";
 import ChatPanel from "./components/ChatPanel.vue";
+
+const collapsedWidth = 44;
+const sidebarCollapsed = ref(false);
+const sidebarWidth = ref(360);
+
+const resizing = ref(false);
+let startX = 0;
+let startW = 0;
+
+function clamp(n: number, min: number, max: number) {
+  return Math.max(min, Math.min(max, n));
+}
+
+function toggleSidebar() {
+  sidebarCollapsed.value = !sidebarCollapsed.value;
+}
+
+function onResizeStart(e: PointerEvent) {
+  resizing.value = true;
+  startX = e.clientX;
+  startW = sidebarWidth.value;
+  (e.currentTarget as HTMLElement | null)?.setPointerCapture?.(e.pointerId);
+  window.addEventListener("pointermove", onResizeMove);
+  window.addEventListener("pointerup", onResizeEnd, { once: true });
+}
+
+function onResizeMove(e: PointerEvent) {
+  if (!resizing.value) return;
+  const dx = e.clientX - startX;
+  sidebarWidth.value = clamp(startW + dx, 260, 560);
+}
+
+function onResizeEnd() {
+  resizing.value = false;
+  window.removeEventListener("pointermove", onResizeMove);
+}
+
+onBeforeUnmount(() => {
+  window.removeEventListener("pointermove", onResizeMove);
+});
 </script>

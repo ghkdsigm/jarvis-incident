@@ -6,7 +6,13 @@ export async function roomRoutes(app: FastifyInstance) {
     const userId = req.user.sub as string;
     const memberships = await prisma.roomMember.findMany({
       where: { userId },
-      include: { room: true }
+      include: {
+        room: {
+          include: {
+            _count: { select: { members: true } }
+          }
+        }
+      }
     });
     return memberships.map((m) => m.room);
   });

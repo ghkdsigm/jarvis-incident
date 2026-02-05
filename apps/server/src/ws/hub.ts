@@ -11,6 +11,8 @@ export async function registerWs(app: FastifyInstance) {
   const conns = new Set<WsConn>();
   const roomIndex = new Map<string, Set<WsConn>>();
 
+  const DELETED_PLACEHOLDER = "(삭제된 메시지)";
+
   function broadcast(roomId: string, msg: any) {
     const set = roomIndex.get(roomId);
     if (!set) return;
@@ -20,6 +22,19 @@ export async function registerWs(app: FastifyInstance) {
         c.socket.send(data);
       } catch {
         // ignore broken sockets
+      }
+    }
+  }
+
+  function sendToUsers(userIds: string[], msg: any) {
+    const set = new Set(userIds);
+    const data = JSON.stringify(msg);
+    for (const c of conns) {
+      if (!set.has(c.userId)) continue;
+      try {
+        c.socket.send(data);
+      } catch {
+        // ignore
       }
     }
   }
@@ -118,6 +133,75 @@ export async function registerWs(app: FastifyInstance) {
         return;
       }
 
+      if (msg.type === "message.edit") {
+        const roomId = msg.roomId;
+        if (!conn.rooms.has(roomId)) {
+          connection.socket.send(JSON.stringify({ type: "error", payload: { message: "NOT_IN_ROOM" } }));
+          return;
+        }
+
+        // Only author can edit their own user message.
+        const existing = await prisma.message.findUnique({ where: { id: msg.messageId } });
+        if (!existing || existing.roomId !== roomId) {
+          connection.socket.send(JSON.stringify({ type: "error", payload: { message: "NOT_FOUND" } }));
+          return;
+        }
+        if (existing.senderType !== "user" || existing.senderUserId !== conn.userId) {
+          connection.socket.send(JSON.stringify({ type: "error", payload: { message: "FORBIDDEN" } }));
+          return;
+        }
+        if (existing.content === DELETED_PLACEHOLDER) {
+          connection.socket.send(JSON.stringify({ type: "error", payload: { message: "ALREADY_DELETED" } }));
+          return;
+        }
+
+        const updated = await prisma.message.update({
+          where: { id: msg.messageId },
+          data: { content: msg.content }
+        });
+
+        const dto = {
+          id: updated.id,
+          roomId: updated.roomId,
+          senderType: updated.senderType as any,
+          senderUserId: updated.senderUserId ?? null,
+          content: updated.content,
+          createdAt: updated.createdAt.toISOString()
+        };
+        broadcast(roomId, { type: "message.updated", payload: dto });
+        return;
+      }
+
+      if (msg.type === "message.delete") {
+        const roomId = msg.roomId;
+        if (!conn.rooms.has(roomId)) {
+          connection.socket.send(JSON.stringify({ type: "error", payload: { message: "NOT_IN_ROOM" } }));
+          return;
+        }
+
+        const existing = await prisma.message.findUnique({ where: { id: msg.messageId } });
+        if (!existing || existing.roomId !== roomId) {
+          connection.socket.send(JSON.stringify({ type: "error", payload: { message: "NOT_FOUND" } }));
+          return;
+        }
+        if (existing.senderType !== "user" || existing.senderUserId !== conn.userId) {
+          connection.socket.send(JSON.stringify({ type: "error", payload: { message: "FORBIDDEN" } }));
+          return;
+        }
+        if (existing.content === DELETED_PLACEHOLDER) {
+          // idempotent
+          broadcast(roomId, { type: "message.deleted", payload: { roomId, messageId: msg.messageId } });
+          return;
+        }
+
+        await prisma.message.update({
+          where: { id: msg.messageId },
+          data: { content: DELETED_PLACEHOLDER }
+        });
+        broadcast(roomId, { type: "message.deleted", payload: { roomId, messageId: msg.messageId } });
+        return;
+      }
+
       if (msg.type === "jarvis.request") {
         const roomId = msg.roomId;
         if (!conn.rooms.has(roomId)) {
@@ -130,6 +214,54 @@ export async function registerWs(app: FastifyInstance) {
           requestedBy: conn.userId,
           prompt: msg.prompt
         });
+        return;
+      }
+
+      if (msg.type === "room.rename") {
+        const roomId = msg.roomId;
+        const membership = await prisma.roomMember.findUnique({
+          where: { roomId_userId: { roomId, userId: conn.userId } }
+        });
+        if (!membership) {
+          connection.socket.send(JSON.stringify({ type: "error", payload: { message: "FORBIDDEN" } }));
+          return;
+        }
+        if (membership.role !== "owner") {
+          connection.socket.send(JSON.stringify({ type: "error", payload: { message: "OWNER_ONLY" } }));
+          return;
+        }
+        const room = await prisma.room.update({
+          where: { id: roomId },
+          data: { title: msg.title.trim() || "New Room" }
+        });
+        const members = await prisma.roomMember.findMany({ where: { roomId }, select: { userId: true } });
+        sendToUsers(
+          members.map((m) => m.userId),
+          { type: "room.updated", payload: { roomId: room.id, title: room.title } }
+        );
+        return;
+      }
+
+      if (msg.type === "room.delete") {
+        const roomId = msg.roomId;
+        const membership = await prisma.roomMember.findUnique({
+          where: { roomId_userId: { roomId, userId: conn.userId } }
+        });
+        if (!membership) {
+          connection.socket.send(JSON.stringify({ type: "error", payload: { message: "FORBIDDEN" } }));
+          return;
+        }
+        if (membership.role !== "owner") {
+          connection.socket.send(JSON.stringify({ type: "error", payload: { message: "OWNER_ONLY" } }));
+          return;
+        }
+
+        const members = await prisma.roomMember.findMany({ where: { roomId }, select: { userId: true } });
+        await prisma.room.delete({ where: { id: roomId } });
+        sendToUsers(
+          members.map((m) => m.userId),
+          { type: "room.deleted", payload: { roomId } }
+        );
         return;
       }
 

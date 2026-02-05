@@ -44,6 +44,15 @@ export const useSessionStore = defineStore("session", {
       await this.reloadRooms();
     },
 
+    async ensureRoomMessages(roomId: string, take = 200): Promise<MessageDto[]> {
+      if (!this.token) return this.messagesByRoom[roomId] ?? [];
+      const existing = this.messagesByRoom[roomId];
+      if (existing && existing.length >= take) return existing;
+      const msgs = await fetchMessages(this.token, roomId, take);
+      this.messagesByRoom[roomId] = msgs;
+      return msgs;
+    },
+
     pushLocal(roomId: string, msg: MessageDto) {
       const list = this.messagesByRoom[roomId] ?? [];
       this.messagesByRoom[roomId] = [...list, msg];
@@ -105,6 +114,51 @@ export const useSessionStore = defineStore("session", {
         createdAt: new Date().toISOString()
       });
       this.ws.send({ type: "message.send", roomId, content });
+    },
+
+    editMessage(roomId: string, messageId: string, content: string) {
+      if (!this.ws) return;
+      if (!this.joinedByRoom[roomId]) this.ws.send({ type: "room.join", roomId });
+      this.ws.send({ type: "message.edit", roomId, messageId, content });
+      // optimistic update (server will broadcast too)
+      const list = this.messagesByRoom[roomId] ?? [];
+      const idx = list.findIndex((m) => m.id === messageId);
+      if (idx >= 0) {
+        const next = [...list];
+        next[idx] = { ...next[idx], content };
+        this.messagesByRoom[roomId] = next;
+      }
+    },
+
+    deleteMessage(roomId: string, messageId: string) {
+      if (!this.ws) return;
+      if (!this.joinedByRoom[roomId]) this.ws.send({ type: "room.join", roomId });
+      this.ws.send({ type: "message.delete", roomId, messageId });
+      // optimistic delete (server will broadcast too)
+      const list = this.messagesByRoom[roomId] ?? [];
+      const idx = list.findIndex((m) => m.id === messageId);
+      if (idx >= 0) {
+        const next = [...list];
+        next[idx] = { ...next[idx], content: "(삭제된 메시지)" };
+        this.messagesByRoom[roomId] = next;
+      }
+    },
+
+    renameRoom(roomId: string, title: string) {
+      if (!this.ws) return;
+      this.ws.send({ type: "room.rename", roomId, title });
+      // optimistic
+      this.rooms = this.rooms.map((r) => (r.id === roomId ? { ...r, title } : r));
+    },
+
+    deleteRoom(roomId: string) {
+      if (!this.ws) return;
+      this.ws.send({ type: "room.delete", roomId });
+      // optimistic (server will also broadcast)
+      this.rooms = this.rooms.filter((r) => r.id !== roomId);
+      if (this.activeRoomId === roomId) {
+        this.activeRoomId = "";
+      }
     },
 
     askJarvis(roomId: string, prompt: string) {
@@ -345,6 +399,49 @@ export const useSessionStore = defineStore("session", {
           this.messagesByRoom[m.roomId] = [...list.slice(0, -1), m];
         } else {
           this.messagesByRoom[m.roomId] = [...list, m];
+        }
+        return;
+      }
+
+      if (evt.type === "message.updated") {
+        const m = evt.payload as MessageDto;
+        const list = this.messagesByRoom[m.roomId] ?? [];
+        const idx = list.findIndex((x) => x.id === m.id);
+        if (idx >= 0) {
+          const next = [...list];
+          next[idx] = m;
+          this.messagesByRoom[m.roomId] = next;
+        } else {
+          this.messagesByRoom[m.roomId] = [...list, m];
+        }
+        return;
+      }
+
+      if (evt.type === "message.deleted") {
+        const p = evt.payload as { roomId: string; messageId: string };
+        const list = this.messagesByRoom[p.roomId] ?? [];
+        const idx = list.findIndex((x) => x.id === p.messageId);
+        if (idx >= 0) {
+          const next = [...list];
+          next[idx] = { ...next[idx], content: "(삭제된 메시지)" } as any;
+          this.messagesByRoom[p.roomId] = next;
+        }
+        return;
+      }
+
+      if (evt.type === "room.updated") {
+        const p = evt.payload as { roomId: string; title: string };
+        this.rooms = this.rooms.map((r) => (r.id === p.roomId ? { ...r, title: p.title } : r));
+        return;
+      }
+
+      if (evt.type === "room.deleted") {
+        const p = evt.payload as { roomId: string };
+        this.rooms = this.rooms.filter((r) => r.id !== p.roomId);
+        if (this.activeRoomId === p.roomId) {
+          this.activeRoomId = "";
+          // best-effort: open first remaining room
+          if (this.rooms.length) this.openRoom(this.rooms[0].id);
         }
         return;
       }

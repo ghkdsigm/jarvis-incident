@@ -38,3 +38,16 @@ export async function fetchMessages(token: string, roomId: string, take = 80): P
   if (!res.ok) throw new Error(`Messages failed: ${res.status}`);
   return await res.json();
 }
+
+export async function translateText(
+  token: string,
+  input: { text: string; targetLang?: string }
+): Promise<{ translatedText: string; cached?: boolean }> {
+  const res = await fetch(`${API_BASE}/translate`, {
+    method: "POST",
+    headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
+    body: JSON.stringify(input)
+  });
+  if (!res.ok) throw new Error(`Translate failed: ${res.status}`);
+  return await res.json();
+}

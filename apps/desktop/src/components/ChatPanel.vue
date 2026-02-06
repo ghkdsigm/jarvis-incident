@@ -120,87 +120,154 @@
       </div>
     </div>
 
-    <div
-      ref="scroller"
-      class="flex-1 overflow-auto space-y-2 t-surface t-scrollbar"
-      :class="isMiniMode ? 'p-2' : 'p-3'"
-      :style="{ opacity: String(chatOpacity) }"
-    >
-      <div v-for="m in store.activeMessages" :key="m.id" class="w-full">
-        <div class="flex" :class="bubbleWrapClass(m)">
-          <div class="max-w-[72%] min-w-0">
-            <div class="text-[11px] t-text-subtle flex items-center gap-2 w-full" :class="metaClass(m)">
-              <span class="font-mono">{{ labelFor(m) }}</span>
-              <span class="tabular-nums">{{ formatChatTime(m.createdAt) }}</span>
-              <span v-if="isDeleted(m)" class="t-text-faint">삭제됨</span>
-              <button
-                type="button"
-                class="ml-auto h-5 w-5 inline-flex items-center justify-center rounded t-btn-secondary shrink-0 bg-transparent border-0"
-                title="이 메시지로 AI 질문/요청"
-                aria-label="이 메시지로 AI 질문/요청"
-                @pointerdown.stop
-                @click.stop="openJarvisPopoverFromMessage(m)"
-              >
-                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" aria-hidden="true">
-                  <rect
-                    x="6"
-                    y="6"
-                    width="12"
-                    height="12"
-                    rx="3"
-                    stroke="currentColor"
-                    stroke-width="1.8"
-                    stroke-linecap="round"
-                    stroke-linejoin="round"
-                  />
-                  <path d="M10 12h.01" stroke="currentColor" stroke-width="2.8" stroke-linecap="round" />
-                  <path d="M14 12h.01" stroke="currentColor" stroke-width="2.8" stroke-linecap="round" />
-                  <path
-                    d="M9 15h6"
-                    stroke="currentColor"
-                    stroke-width="1.8"
-                    stroke-linecap="round"
-                    stroke-linejoin="round"
-                  />
-                </svg>
-              </button>
-            </div>
-
-            <div
-              class="group mt-1 rounded-2xl border px-3 py-2 text-sm whitespace-pre-wrap break-words"
-              :class="bubbleClass(m)"
-            >
-              <template v-if="editingId === m.id">
-                <textarea
-                  v-model="editingText"
-                  class="w-full min-h-[72px] px-2 py-1 text-sm rounded t-input t-input-strong"
-                />
-                <div class="mt-2 flex items-center justify-end gap-2">
-                  <button class="px-2 py-1 text-xs rounded t-btn-secondary" @click="cancelEdit">취소</button>
-                  <button
-                    class="px-2 py-1 text-xs rounded t-btn-primary disabled:opacity-50"
-                    :disabled="!editingText.trim().length"
-                    @click="submitEdit(m)"
-                  >
-                    저장
-                  </button>
-                </div>
-              </template>
-              <template v-else>
-                <div :class="isDeleted(m) ? 'italic t-text-muted' : ''">
-                  {{ isDeleted(m) ? "(삭제된 메시지)" : m.content }}
-                </div>
-
-                <div
-                  v-if="canEditOrDelete(m)"
-                  class="mt-2 hidden group-hover:flex items-center justify-end gap-2"
+    <div class="flex-1 min-h-0" :class="isTranslateOn ? 'overflow-hidden' : ''">
+      <div
+        v-if="!isTranslateOn"
+        ref="scroller"
+        class="h-full overflow-auto space-y-2 t-surface t-scrollbar"
+        :class="isMiniMode ? 'p-2' : 'p-3'"
+        :style="{ opacity: String(chatOpacity) }"
+      >
+        <div v-for="m in store.activeMessages" :key="m.id" class="w-full">
+          <div class="flex" :class="bubbleWrapClass(m)">
+            <div class="max-w-[72%] min-w-0">
+              <div class="text-[11px] t-text-subtle flex items-center gap-2 w-full" :class="metaClass(m)">
+                <span class="font-mono">{{ labelFor(m) }}</span>
+                <span class="tabular-nums">{{ formatChatTime(m.createdAt) }}</span>
+                <span v-if="isDeleted(m)" class="t-text-faint">삭제됨</span>
+                <button
+                  type="button"
+                  class="ml-auto h-5 w-5 inline-flex items-center justify-center rounded t-btn-secondary shrink-0 bg-transparent border-0"
+                  title="이 메시지로 AI 질문/요청"
+                  aria-label="이 메시지로 AI 질문/요청"
+                  @pointerdown.stop
+                  @click.stop="openJarvisPopoverFromMessage(m)"
                 >
-                  <button class="px-2 py-1 text-xs rounded t-btn-secondary" @click="startEdit(m)">수정</button>
-                  <button class="px-2 py-1 text-xs rounded t-btn-danger" @click="confirmDelete(m)">
-                    삭제
-                  </button>
+                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+                    <rect
+                      x="6"
+                      y="6"
+                      width="12"
+                      height="12"
+                      rx="3"
+                      stroke="currentColor"
+                      stroke-width="1.8"
+                      stroke-linecap="round"
+                      stroke-linejoin="round"
+                    />
+                    <path d="M10 12h.01" stroke="currentColor" stroke-width="2.8" stroke-linecap="round" />
+                    <path d="M14 12h.01" stroke="currentColor" stroke-width="2.8" stroke-linecap="round" />
+                    <path
+                      d="M9 15h6"
+                      stroke="currentColor"
+                      stroke-width="1.8"
+                      stroke-linecap="round"
+                      stroke-linejoin="round"
+                    />
+                  </svg>
+                </button>
+              </div>
+
+              <div
+                class="group mt-1 rounded-2xl border px-3 py-2 text-sm whitespace-pre-wrap break-words"
+                :class="bubbleClass(m)"
+              >
+                <template v-if="editingId === m.id">
+                  <textarea
+                    v-model="editingText"
+                    class="w-full min-h-[72px] px-2 py-1 text-sm rounded t-input t-input-strong"
+                  />
+                  <div class="mt-2 flex items-center justify-end gap-2">
+                    <button class="px-2 py-1 text-xs rounded t-btn-secondary" @click="cancelEdit">취소</button>
+                    <button
+                      class="px-2 py-1 text-xs rounded t-btn-primary disabled:opacity-50"
+                      :disabled="!editingText.trim().length"
+                      @click="submitEdit(m)"
+                    >
+                      저장
+                    </button>
+                  </div>
+                </template>
+                <template v-else>
+                  <div :class="isDeleted(m) ? 'italic t-text-muted' : ''">
+                    {{ isDeleted(m) ? "(삭제된 메시지)" : m.content }}
+                  </div>
+
+                  <div
+                    v-if="canEditOrDelete(m)"
+                    class="mt-2 hidden group-hover:flex items-center justify-end gap-2"
+                  >
+                    <button class="px-2 py-1 text-xs rounded t-btn-secondary" @click="startEdit(m)">수정</button>
+                    <button class="px-2 py-1 text-xs rounded t-btn-danger" @click="confirmDelete(m)">
+                      삭제
+                    </button>
+                  </div>
+                </template>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div v-else class="h-full grid grid-cols-2 gap-2" :class="isMiniMode ? 'p-2' : 'p-3'">
+        <div class="min-h-0 rounded border t-border overflow-hidden">
+          <div
+            ref="scrollerLeft"
+            class="h-full overflow-auto space-y-2 t-surface t-scrollbar p-3"
+            :style="{ opacity: String(chatOpacity) }"
+            @scroll="onScrollLeft"
+          >
+            <div v-for="m in store.activeMessages" :key="m.id" class="w-full">
+              <div class="flex" :class="bubbleWrapClass(m)">
+                <div class="max-w-[72%] min-w-0">
+                  <div class="text-[11px] t-text-subtle flex items-center gap-2 w-full" :class="metaClass(m)">
+                    <span class="font-mono">{{ labelFor(m) }}</span>
+                    <span class="tabular-nums">{{ formatChatTime(m.createdAt) }}</span>
+                    <span v-if="isDeleted(m)" class="t-text-faint">삭제됨</span>
+                  </div>
+                  <div
+                    class="mt-1 rounded-2xl border px-3 py-2 text-sm whitespace-pre-wrap break-words"
+                    :class="bubbleClass(m)"
+                  >
+                    <div :class="isDeleted(m) ? 'italic t-text-muted' : ''">
+                      {{ isDeleted(m) ? "(삭제된 메시지)" : m.content }}
+                    </div>
+                  </div>
                 </div>
-              </template>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div class="min-h-0 rounded border t-border overflow-hidden">
+          <div
+            ref="scrollerRight"
+            class="h-full overflow-auto space-y-2 t-surface t-scrollbar p-3"
+            :style="{ opacity: String(chatOpacity) }"
+            @scroll="onScrollRight"
+          >
+            <div v-for="m in store.activeMessages" :key="'tr:' + m.id" class="w-full">
+              <div class="flex" :class="bubbleWrapClass(m)">
+                <div class="max-w-[72%] min-w-0">
+                  <div class="text-[11px] t-text-subtle flex items-center gap-2 w-full" :class="metaClass(m)">
+                    <span class="font-mono">{{ translateTargetLang }}</span>
+                    <span class="tabular-nums">{{ formatChatTime(m.createdAt) }}</span>
+                    <span v-if="isDeleted(m)" class="t-text-faint">삭제됨</span>
+                    <span v-else-if="translatePendingById[translationKeyFor(m)]" class="t-text-faint">번역 중…</span>
+                  </div>
+                  <div
+                    class="mt-1 rounded-2xl border px-3 py-2 text-sm whitespace-pre-wrap break-words"
+                    :class="bubbleClass(m)"
+                  >
+                    <div :class="isDeleted(m) ? 'italic t-text-muted' : ''">
+                      {{ isDeleted(m) ? "(삭제된 메시지)" : translatedTextFor(m) }}
+                    </div>
+                    <div v-if="!isDeleted(m) && shouldShowTranslatePendingHint(m)" class="text-xs t-text-subtle mt-1">
+                      (번역 대기)
+                    </div>
+                  </div>
+                </div>
+              </div>
             </div>
           </div>
         </div>
@@ -260,6 +327,42 @@
             />
           </span>
         </button>
+
+        <button
+          class="px-3 py-2 text-sm rounded t-btn-secondary inline-flex items-center gap-2"
+          :class="isTranslateOn ? 't-btn-primary' : ''"
+          type="button"
+          :title="`실시간 번역 (${translateTargetLang})`"
+          @click="toggleTranslate"
+        >
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" aria-hidden="true" class="shrink-0">
+            <path
+              d="M4 5h8M8 5v2m0 0c0 4-2 7-4 9m4-9c0 4 2 7 4 9"
+              stroke="currentColor"
+              stroke-width="1.8"
+              stroke-linecap="round"
+              stroke-linejoin="round"
+            />
+            <path
+              d="M14 19h6m-3-9 3 9m-6 0 3-9"
+              stroke="currentColor"
+              stroke-width="1.8"
+              stroke-linecap="round"
+              stroke-linejoin="round"
+            />
+          </svg>
+          <span class="whitespace-nowrap">{{ isTranslateOn ? "번역 중" : "실시간 번역" }}</span>
+        </button>
+
+        <select
+          v-model="translateTargetLang"
+          class="h-9 px-2 text-sm rounded t-input t-input-strong"
+          title="번역 언어 선택"
+          aria-label="번역 언어 선택"
+        >
+          <option value="ko">ko</option>
+          <option value="en">en</option>
+        </select>
 
         <div class="flex items-center gap-3 ml-auto w-[46%] max-w-[560px] min-w-[320px]">
           <div class="text-xs t-text-subtle shrink-0">Opacity</div>
@@ -689,6 +792,7 @@ import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from "vue"
 import { useSessionStore } from "../stores/session";
 import { useWindowStore } from "../stores/window";
 import { isJarvisTrigger, stripJarvisPrefix } from "@jarvis/shared";
+import { translateText } from "../api/http";
 import CommonModal from "./ui/CommonModal.vue";
 
 const store = useSessionStore();
@@ -913,6 +1017,206 @@ function onPickFiles(ev: Event) {
   el.value = "";
 }
 const scroller = ref<HTMLDivElement | null>(null);
+const scrollerLeft = ref<HTMLDivElement | null>(null);
+const scrollerRight = ref<HTMLDivElement | null>(null);
+const isTranslateOn = ref(false);
+const translateTargetLang = ref<"ko" | "en">("ko");
+const translatedByKey = ref<Record<string, string>>({});
+const translatePendingById = ref<Record<string, boolean>>({});
+const LS_TRANSLATIONS_BY_ROOM = "jarvis.desktop.translationsByRoom";
+const LS_TRANSLATE_TARGET_LANG = "jarvis.desktop.translateTargetLang";
+let translateRunId = 0;
+let syncingScroll = false;
+
+try {
+  const raw = localStorage.getItem(LS_TRANSLATE_TARGET_LANG);
+  if (raw === "ko" || raw === "en") translateTargetLang.value = raw;
+} catch {
+  // ignore
+}
+
+watch(translateTargetLang, (v) => {
+  try {
+    localStorage.setItem(LS_TRANSLATE_TARGET_LANG, v);
+  } catch {
+    // ignore
+  }
+});
+
+function isLikelyKorean(text: string) {
+  const s = String(text ?? "");
+  if (!s.trim()) return true;
+  const hangul = (s.match(/[가-힣]/g) ?? []).length;
+  const latin = (s.match(/[A-Za-z]/g) ?? []).length;
+  // 한글이 조금이라도 있으면 ko로 간주(번역 호출 스킵)
+  if (hangul > 0 && latin === 0) return true;
+  if (hangul > 3) return true;
+  return false;
+}
+
+function isLikelyEnglish(text: string) {
+  const s = String(text ?? "");
+  if (!s.trim()) return true;
+  const hangul = (s.match(/[가-힣]/g) ?? []).length;
+  const latin = (s.match(/[A-Za-z]/g) ?? []).length;
+  // 영문이 충분히 있고 한글이 거의 없으면 en으로 간주(번역 호출 스킵)
+  if (latin > 0 && hangul === 0) return true;
+  if (latin > 6 && hangul < 2) return true;
+  return false;
+}
+
+function isLikelyTargetLang(text: string, target: "ko" | "en") {
+  return target === "ko" ? isLikelyKorean(text) : isLikelyEnglish(text);
+}
+
+function translationKeyFor(m: any) {
+  const id = String(m?.id ?? "");
+  return `${translateTargetLang.value}:${id}`;
+}
+
+function translatedTextFor(m: any) {
+  const id = String(m?.id ?? "");
+  const content = String(m?.content ?? "");
+  const key = `${translateTargetLang.value}:${id}`;
+  if (isLikelyTargetLang(content, translateTargetLang.value)) return "같은 언어입니다";
+  const cached = translatedByKey.value[key];
+  if (cached) return cached;
+  return "";
+}
+
+function shouldShowTranslatePendingHint(m: any) {
+  const id = String(m?.id ?? "");
+  const content = String(m?.content ?? "");
+  const key = `${translateTargetLang.value}:${id}`;
+  if (!content.trim()) return false;
+  if (isLikelyTargetLang(content, translateTargetLang.value)) return false;
+  if (translatedByKey.value[key]) return false;
+  return true;
+}
+
+function loadTranslationsForRoom(roomId: string) {
+  try {
+    const raw = localStorage.getItem(LS_TRANSLATIONS_BY_ROOM);
+    if (!raw) return;
+    const parsed = JSON.parse(raw) as Record<string, Record<string, string>>;
+    const hit = parsed?.[roomId];
+    if (hit && typeof hit === "object") translatedByKey.value = { ...translatedByKey.value, ...hit };
+  } catch {
+    // ignore
+  }
+}
+
+function saveTranslationsForRoom(roomId: string) {
+  try {
+    const raw = localStorage.getItem(LS_TRANSLATIONS_BY_ROOM);
+    const parsed = raw ? (JSON.parse(raw) as Record<string, Record<string, string>>) : {};
+    parsed[roomId] = { ...(parsed[roomId] ?? {}), ...translatedByKey.value };
+    // 너무 커지지 않도록 최근 400개 정도만 유지(대략)
+    const keys = Object.keys(parsed[roomId] ?? {});
+    if (keys.length > 400) {
+      const trimmed: Record<string, string> = {};
+      for (const k of keys.slice(keys.length - 400)) trimmed[k] = parsed[roomId][k];
+      parsed[roomId] = trimmed;
+    }
+    localStorage.setItem(LS_TRANSLATIONS_BY_ROOM, JSON.stringify(parsed));
+  } catch {
+    // ignore
+  }
+}
+
+function onScrollLeft() {
+  if (!isTranslateOn.value) return;
+  if (syncingScroll) return;
+  const left = scrollerLeft.value;
+  const right = scrollerRight.value;
+  if (!left || !right) return;
+  syncingScroll = true;
+  right.scrollTop = left.scrollTop;
+  window.setTimeout(() => (syncingScroll = false), 0);
+}
+
+function onScrollRight() {
+  if (!isTranslateOn.value) return;
+  if (syncingScroll) return;
+  const left = scrollerLeft.value;
+  const right = scrollerRight.value;
+  if (!left || !right) return;
+  syncingScroll = true;
+  left.scrollTop = right.scrollTop;
+  window.setTimeout(() => (syncingScroll = false), 0);
+}
+
+async function translateOneMessage(m: any, runId: number) {
+  if (!isTranslateOn.value) return;
+  if (runId !== translateRunId) return;
+  const token = store.token;
+  if (!token) return;
+
+  const id = String(m?.id ?? "");
+  const content = String(m?.content ?? "").trim();
+  if (!id || !content) return;
+  if (isDeleted(m)) return;
+  const t = translateTargetLang.value;
+  const key = `${t}:${id}`;
+  if (translatedByKey.value[key]) return;
+
+  // 비용 최소화: 이미 목표 언어로 보이면 호출 스킵
+  if (isLikelyTargetLang(content, t)) return;
+
+  translatePendingById.value = { ...translatePendingById.value, [key]: true };
+  try {
+    const res = await translateText(token, { text: content, targetLang: t });
+    if (!isTranslateOn.value) return;
+    if (runId !== translateRunId) return;
+    const translatedText = String(res?.translatedText ?? "").trim();
+    if (translatedText) {
+      translatedByKey.value = { ...translatedByKey.value, [key]: translatedText };
+      if (store.activeRoomId) saveTranslationsForRoom(store.activeRoomId);
+    }
+  } catch {
+    // ignore: keep "(번역 대기)" 상태
+  } finally {
+    const next = { ...translatePendingById.value };
+    delete next[key];
+    translatePendingById.value = next;
+  }
+}
+
+async function runTranslateBackfill() {
+  if (!isTranslateOn.value) return;
+  if (!store.activeRoomId) return;
+  const runId = translateRunId;
+  loadTranslationsForRoom(store.activeRoomId);
+
+  // 너무 큰 비용 방지: 최근 메시지부터 최대 80개만 백필
+  const msgs = store.activeMessages.slice(-80);
+  for (const m of msgs) {
+    if (!isTranslateOn.value) break;
+    if (runId !== translateRunId) break;
+    await translateOneMessage(m, runId);
+  }
+
+  await nextTick();
+  // 스크롤 sync를 위해 초기 위치 맞춤
+  try {
+    if (scrollerLeft.value && scrollerRight.value) scrollerRight.value.scrollTop = scrollerLeft.value.scrollTop;
+  } catch {
+    // ignore
+  }
+}
+
+function toggleTranslate() {
+  // 토글 버튼을 눌렀을 때만 작동
+  isTranslateOn.value = !isTranslateOn.value;
+  translateRunId++;
+  // 끌 때는 대기 상태 정리(호출 결과는 runId로 무시)
+  if (!isTranslateOn.value) {
+    translatePendingById.value = {};
+    return;
+  }
+  // 켤 때만 백필/실시간 번역 시작
+  runTranslateBackfill();
+}
 const remoteVideo = ref<HTMLVideoElement | null>(null);
 const localVideo = ref<HTMLVideoElement | null>(null);
 
@@ -1665,6 +1969,42 @@ watch(
   async () => {
     await nextTick();
     scrollToBottom();
+  }
+);
+
+watch(
+  () => store.activeMessages.length,
+  async (len, prev) => {
+    if (!isTranslateOn.value) return;
+    if (!store.activeRoomId) return;
+    if (!prev || len <= prev) return;
+    const last = store.activeMessages[len - 1];
+    if (!last) return;
+    const runId = translateRunId;
+    await translateOneMessage(last, runId);
+  }
+);
+
+watch(
+  () => store.activeRoomId,
+  async (rid) => {
+    if (!rid) return;
+    if (!isTranslateOn.value) return;
+    translateRunId++;
+    await nextTick();
+    runTranslateBackfill();
+  }
+);
+
+watch(
+  () => translateTargetLang.value,
+  async () => {
+    if (!isTranslateOn.value) return;
+    if (!store.activeRoomId) return;
+    translateRunId++;
+    translatePendingById.value = {};
+    await nextTick();
+    runTranslateBackfill();
   }
 );
 

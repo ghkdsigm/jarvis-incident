@@ -14,5 +14,10 @@ export const env = {
   databaseUrl: requireEnv("DATABASE_URL"),
   redisUrl: requireEnv("REDIS_URL", "redis://localhost:6379"),
   aiQueueName: process.env.AI_QUEUE_NAME ?? "jarvis_ai_jobs",
-  pubsubChannel: process.env.PUBSUB_CHANNEL ?? "jarvis_room_events"
+  pubsubChannel: process.env.PUBSUB_CHANNEL ?? "jarvis_room_events",
+
+  // Optional: used by /translate endpoint
+  openaiApiKey: process.env.OPENAI_API_KEY ?? "",
+  openaiBaseUrl: process.env.OPENAI_BASE_URL ?? "https://api.openai.com/v1",
+  openaiTranslateModel: process.env.OPENAI_TRANSLATE_MODEL ?? "gpt-4o-mini"
 };

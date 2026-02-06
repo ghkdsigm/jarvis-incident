@@ -25,7 +25,7 @@
       <div class="w-2.5 h-2.5 rounded-full bg-emerald-500 shrink-0"></div>
       <div class="min-w-0">
         <div class="text-sm font-semibold truncate">
-          {{ miniMode ? store.activeRoom?.title ?? "Dw-Brain" : "Dw-Brain" }}
+          {{ miniMode ? store.activeRoom?.title ?? "DW-BRAIN" : "DW-BRAIN" }}
         </div>
         <div v-if="!miniMode" class="text-xs t-text-muted truncate">Dongwah Business Real-time AI Network</div>
       </div>

@@ -5,7 +5,7 @@
         <div class="flex items-center gap-3">
           <div class="w-10 h-10 rounded-lg t-btn-primary flex items-center justify-center text-white font-bold">DW</div>
           <div>
-            <div class="text-lg font-semibold">DW-Brain</div>
+            <div class="text-lg font-semibold">DW-BRAIN</div>
             <div class="text-xs t-text-muted">로그인 후 채팅방으로 이동합니다</div>
           </div>
         </div>

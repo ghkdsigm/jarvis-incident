@@ -129,10 +129,41 @@
       <div v-for="m in store.activeMessages" :key="m.id" class="w-full">
         <div class="flex" :class="bubbleWrapClass(m)">
           <div class="max-w-[72%] min-w-0">
-            <div class="text-[11px] t-text-subtle flex items-center gap-2" :class="metaClass(m)">
+            <div class="text-[11px] t-text-subtle flex items-center gap-2 w-full" :class="metaClass(m)">
               <span class="font-mono">{{ labelFor(m) }}</span>
-              <span>{{ new Date(m.createdAt).toLocaleTimeString() }}</span>
+              <span class="tabular-nums">{{ formatChatTime(m.createdAt) }}</span>
               <span v-if="isDeleted(m)" class="t-text-faint">삭제됨</span>
+              <button
+                type="button"
+                class="ml-auto h-5 w-5 inline-flex items-center justify-center rounded t-btn-secondary shrink-0 bg-transparent border-0"
+                title="이 메시지로 AI 질문/요청"
+                aria-label="이 메시지로 AI 질문/요청"
+                @pointerdown.stop
+                @click.stop="openJarvisPopoverFromMessage(m)"
+              >
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+                  <rect
+                    x="6"
+                    y="6"
+                    width="12"
+                    height="12"
+                    rx="3"
+                    stroke="currentColor"
+                    stroke-width="1.8"
+                    stroke-linecap="round"
+                    stroke-linejoin="round"
+                  />
+                  <path d="M10 12h.01" stroke="currentColor" stroke-width="2.8" stroke-linecap="round" />
+                  <path d="M14 12h.01" stroke="currentColor" stroke-width="2.8" stroke-linecap="round" />
+                  <path
+                    d="M9 15h6"
+                    stroke="currentColor"
+                    stroke-width="1.8"
+                    stroke-linecap="round"
+                    stroke-linejoin="round"
+                  />
+                </svg>
+              </button>
             </div>
 
             <div
@@ -338,47 +369,138 @@
             </div>
           </div>
         </div>
-        <button class="py-2 text-sm rounded t-btn-secondary" :class="isMiniMode ? 'px-3' : 'px-6'" @click="send">
-          전송
-        </button>
-        <button
-          class="py-2 text-sm rounded t-btn-primary inline-flex items-center gap-1.5"
-          :class="isMiniMode ? 'px-3' : 'px-5'"
-          title="AI에게 질문하기"
-          @click="askJarvisQuick"
-        >
-          <svg width="22" height="22" viewBox="0 0 24 24" fill="none" aria-hidden="true" class="shrink-0">
-            <circle cx="12" cy="3" r="1" fill="currentColor" />
-            <path
-              d="M12 4v2"
-              stroke="currentColor"
-              stroke-width="1.8"
-              stroke-linecap="round"
-              stroke-linejoin="round"
+        <div class="relative shrink-0 flex items-center gap-2">
+          <button class="py-2 text-sm rounded t-btn-secondary" :class="isMiniMode ? 'px-3' : 'px-6'" @click="send">
+            전송
+          </button>
+          <button
+            ref="jarvisButton"
+            type="button"
+            class="h-10 w-10 inline-flex items-center justify-center rounded t-btn-primary shrink-0"
+            title="AI에게 질문/요청 하기"
+            aria-label="AI에게 질문/요청 하기"
+            @click="askJarvisQuick"
+          >
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+              <circle cx="12" cy="3" r="1" fill="currentColor" />
+              <path
+                d="M12 4v2"
+                stroke="currentColor"
+                stroke-width="1.8"
+                stroke-linecap="round"
+                stroke-linejoin="round"
+              />
+              <rect
+                x="6"
+                y="6"
+                width="12"
+                height="12"
+                rx="3"
+                stroke="currentColor"
+                stroke-width="1.8"
+                stroke-linecap="round"
+                stroke-linejoin="round"
+              />
+              <path d="M10 12h.01" stroke="currentColor" stroke-width="2.8" stroke-linecap="round" />
+              <path d="M14 12h.01" stroke="currentColor" stroke-width="2.8" stroke-linecap="round" />
+              <path
+                d="M9 15h6"
+                stroke="currentColor"
+                stroke-width="1.8"
+                stroke-linecap="round"
+                stroke-linejoin="round"
+              />
+            </svg>
+          </button>
+
+          <div
+            v-if="jarvisPopoverOpen"
+            ref="jarvisPopover"
+            class="jarvis-popover absolute bottom-full mb-2 right-0 w-[440px] max-w-[92vw] rounded border t-border t-surface shadow-lg p-3"
+            @pointerdown.stop
+          >
+            <div class="flex items-center justify-between gap-2 mb-2">
+              <div class="text-xs t-text-muted">AI 질문 및 요청</div>
+              <button type="button" class="px-2 py-1 text-xs rounded t-btn-secondary" @click="closeJarvisPopover">
+                닫기
+              </button>
+            </div>
+
+            <div v-if="currentJarvisContexts.length" class="mb-2 space-y-2">
+              <div class="flex items-center justify-between gap-2">
+                <div class="text-[11px] t-text-subtle">선택 메시지 ({{ currentJarvisContexts.length }})</div>
+                <button
+                  type="button"
+                  class="px-2 py-1 text-[11px] rounded t-btn-secondary shrink-0"
+                  @click="clearCurrentRoomJarvisContexts"
+                >
+                  전체 해제
+                </button>
+              </div>
+
+              <div
+                v-for="c in currentJarvisContexts"
+                :key="c.key"
+                class="p-2 rounded border t-border t-row"
+              >
+                <div class="flex items-center justify-between gap-2">
+                  <div class="text-[11px] t-text-subtle truncate">{{ c.label }} · {{ c.time }}</div>
+                  <button
+                    type="button"
+                    class="px-2 py-1 text-[11px] rounded t-btn-secondary shrink-0"
+                    @click="removeCurrentRoomJarvisContext(c.key)"
+                  >
+                    해제
+                  </button>
+                </div>
+                <div class="mt-1 text-xs t-text-muted whitespace-pre-wrap break-words max-h-[92px] overflow-auto t-scrollbar">
+                  {{ c.content }}
+                </div>
+              </div>
+            </div>
+
+            <textarea
+              v-model="jarvisPrompt"
+              ref="jarvisPopoverTextarea"
+              class="w-full min-h-[92px] px-3 py-2 text-sm rounded t-input"
+              placeholder="예: 이 메시지 원인 분석해줘 / 다음 액션 아이템 뽑아줘..."
             />
-            <rect
-              x="6"
-              y="6"
-              width="12"
-              height="12"
-              rx="3"
-              stroke="currentColor"
-              stroke-width="1.8"
-              stroke-linecap="round"
-              stroke-linejoin="round"
-            />
-            <path d="M10 12h.01" stroke="currentColor" stroke-width="2.8" stroke-linecap="round" />
-            <path d="M14 12h.01" stroke="currentColor" stroke-width="2.8" stroke-linecap="round" />
-            <path
-              d="M9 15h6"
-              stroke="currentColor"
-              stroke-width="1.8"
-              stroke-linecap="round"
-              stroke-linejoin="round"
-            />
-          </svg>
-          <span class="sr-only">AI 질문</span>
-        </button>
+
+            <div class="mt-2 space-y-1">
+              <div class="flex items-center justify-between gap-2">
+                <div class="text-xs t-text-muted">자주 묻는 질문</div>
+                <div class="text-[11px] t-text-subtle">좌우로 드래그</div>
+              </div>
+              <div
+                ref="jarvisSuggestionsRow"
+                class="flex items-center gap-2 overflow-x-auto flex-nowrap py-1 -mx-1 px-1 cursor-grab active:cursor-grabbing t-scrollbar t-dragscroll-x"
+                @pointerdown="onJarvisSuggestionsPointerDown"
+                @pointermove="onJarvisSuggestionsPointerMove"
+                @pointerup="onJarvisSuggestionsPointerUp"
+                @pointercancel="onJarvisSuggestionsPointerUp"
+              >
+                <button
+                  v-for="s in jarvisSuggestions"
+                  :key="s.key"
+                  type="button"
+                  class="text-[12px] px-3 py-1.5 rounded-full border t-chip whitespace-nowrap"
+                  @click="onJarvisSuggestionClick(s.prompt, $event)"
+                >
+                  #{{ s.label }}
+                </button>
+              </div>
+            </div>
+
+            <div class="mt-3 flex items-center justify-end gap-2">
+              <button type="button" class="px-3 py-2 text-sm rounded t-btn-secondary" @click="closeJarvisPopover">
+                취소
+              </button>
+              <button type="button" class="px-3 py-2 text-sm rounded t-btn-primary" @click="submitJarvis">
+                질문
+              </button>
+            </div>
+          </div>
+        </div>
       </div>
       <div v-if="pendingAttachments.length" class="mt-2 flex flex-wrap gap-2">
         <div
@@ -407,7 +529,7 @@
 
   <CommonModal :open="jarvisOpen" title="자비스에게 질문" @close="closeJarvis">
     <div class="space-y-3">
-      <div class="text-xs t-text-muted">질문</div>
+      <div class="text-xs t-text-muted">질문 및 요청</div>
       <textarea
         v-model="jarvisPrompt"
         ref="jarvisTextarea"
@@ -699,6 +821,7 @@ function toggleAttachMenu() {
 function closeAllComposerPopovers() {
   closeEmojiPicker();
   closeAttachMenu();
+  closeJarvisPopover();
 }
 
 function insertAtCursor(s: string) {
@@ -831,6 +954,91 @@ const jarvisOpen = ref(false);
 const jarvisPrompt = ref("");
 const jarvisTextarea = ref<HTMLTextAreaElement | null>(null);
 const jarvisSuggestionsRow = ref<HTMLDivElement | null>(null);
+const jarvisPopoverOpen = ref(false);
+const jarvisPopover = ref<HTMLDivElement | null>(null);
+const jarvisButton = ref<HTMLButtonElement | null>(null);
+const jarvisPopoverTextarea = ref<HTMLTextAreaElement | null>(null);
+type JarvisContextItem = {
+  key: string;
+  content: string;
+  label: string;
+  time: string;
+  source: "message" | "mic" | "ai";
+  messageId?: string;
+  createdAt: number;
+};
+const LS_JARVIS_CONTEXTS_BY_ROOM = "jarvis.desktop.contextsByRoom";
+const jarvisContextsByRoom = ref<Record<string, JarvisContextItem[]>>({});
+const currentJarvisContexts = computed<JarvisContextItem[]>(() => {
+  const rid = store.activeRoomId;
+  if (!rid) return [];
+  return jarvisContextsByRoom.value[rid] ?? [];
+});
+const pendingAiContextRoomId = ref<string>("");
+
+function formatChatTime(v: any) {
+  const d = new Date(v);
+  if (!Number.isFinite(d.getTime())) return "";
+  return new Intl.DateTimeFormat("ko-KR", { hour: "numeric", minute: "2-digit" }).format(d);
+}
+
+function loadJarvisContextsByRoom() {
+  try {
+    const raw = localStorage.getItem(LS_JARVIS_CONTEXTS_BY_ROOM);
+    if (!raw) return;
+    const v = JSON.parse(raw);
+    if (!v || typeof v !== "object") return;
+    jarvisContextsByRoom.value = v;
+  } catch {
+    // ignore
+  }
+}
+
+function saveJarvisContextsByRoom() {
+  try {
+    localStorage.setItem(LS_JARVIS_CONTEXTS_BY_ROOM, JSON.stringify(jarvisContextsByRoom.value));
+  } catch {
+    // ignore
+  }
+}
+
+function addJarvisContextToRoom(roomId: string, item: Omit<JarvisContextItem, "key">) {
+  const key = makeId();
+  const next: JarvisContextItem = { key, ...item };
+  const list = jarvisContextsByRoom.value[roomId] ?? [];
+
+  // 간단한 중복 방지: messageId가 같으면 스킵, content가 완전히 같아도 스킵
+  if (next.messageId && list.some((x) => x.messageId === next.messageId)) return;
+  if (list.some((x) => x.content === next.content)) return;
+
+  const capped = [...list, next].slice(-8); // 방별 최대 8개만 유지
+  jarvisContextsByRoom.value = { ...jarvisContextsByRoom.value, [roomId]: capped };
+  saveJarvisContextsByRoom();
+}
+
+function clearCurrentRoomJarvisContexts() {
+  const rid = store.activeRoomId;
+  if (!rid) return;
+  const next = { ...jarvisContextsByRoom.value };
+  delete next[rid];
+  jarvisContextsByRoom.value = next;
+  saveJarvisContextsByRoom();
+}
+
+function removeCurrentRoomJarvisContext(key: string) {
+  const rid = store.activeRoomId;
+  if (!rid) return;
+  const list = jarvisContextsByRoom.value[rid] ?? [];
+  const nextList = list.filter((x) => x.key !== key);
+  jarvisContextsByRoom.value = { ...jarvisContextsByRoom.value, [rid]: nextList };
+  saveJarvisContextsByRoom();
+}
+
+function focusJarvisPrompt() {
+  // popover 우선, 없으면 modal
+  jarvisPopoverTextarea.value?.focus();
+  jarvisTextarea.value?.focus();
+}
 
 let jarvisSuggestionsPointerId: number | null = null;
 let jarvisSuggestionsDragStartX = 0;
@@ -842,11 +1050,11 @@ const JARVIS_SUGGESTIONS_DRAG_THRESHOLD_PX = 8;
 const jarvisSuggestions = [
   { key: "brief_summary", label: "전체 요약", prompt: "전체 내용을 간단하게 요약해줘" },
   { key: "recent_summary", label: "최근 대화 요약", prompt: "최근 대화 내용을 요약해줘" },
-  { key: "teams_alarm_10m", label: "10분 뒤 알람", prompt: "10분 뒤에 팀즈로 알람 줘" },
   { key: "rm_links", label: "RM 링크", prompt: "관련 RM 링크 찾아줘" },
   { key: "best_internal_reco", label: "사내 인력 추천", prompt: "대화 맥락으로 봤을때 가장 최적의 사내 인력 추천좀 해줄래?" },
   { key: "latest_news", label: "최신 뉴스", prompt: "관련 최신 내용 뉴스를 찾아줘" },
   { key: "send_minutes_email", label: "회의록 메일", prompt: "회의록처럼 정리해서 참가자들 메일로 보내줘" },
+  { key: "teams_alarm_10m", label: "10분 뒤 알람", prompt: "10분 뒤에 팀즈로 알람 줘" },
   { key: "write_notion", label: "노션 작성", prompt: "노션에 작성해줘" }
 ] as const;
 
@@ -919,7 +1127,7 @@ async function onJarvisSuggestionClick(prompt: string, ev: MouseEvent) {
 async function applyJarvisSuggestion(prompt: string) {
   jarvisPrompt.value = prompt;
   await nextTick();
-  jarvisTextarea.value?.focus();
+  focusJarvisPrompt();
 }
 
 function openJarvisWithPrompt(prompt: string) {
@@ -1064,9 +1272,22 @@ async function stopListeningAndOpenJarvis() {
   audioCtx = null;
   analyser = null;
 
-  openJarvisWithPrompt(getListeningText());
-  await nextTick();
-  jarvisTextarea.value?.focus();
+  const rid = store.activeRoomId;
+  const transcript = getListeningText().trim();
+  listeningTextFinal.value = "";
+  listeningTextInterim.value = "";
+  if (rid && transcript) {
+    addJarvisContextToRoom(rid, {
+      content: transcript,
+      label: "voice",
+      time: formatChatTime(Date.now()),
+      source: "mic",
+      createdAt: Date.now()
+    });
+  }
+
+  // 음성 내용은 선택 메시지로 저장하고, 사용자는 별도 질문/요청을 입력
+  await openJarvisPopoverWithPrompt("");
 }
 
 async function toggleListening() {
@@ -1118,6 +1339,9 @@ function onDocPointerDown(ev: PointerEvent) {
   if (attachOpen.value) {
     if (!attachPopover.value?.contains(t) && !attachButton.value?.contains(t)) closeAttachMenu();
   }
+  if (jarvisPopoverOpen.value) {
+    if (!jarvisPopover.value?.contains(t) && !jarvisButton.value?.contains(t)) closeJarvisPopover();
+  }
 }
 
 function onDocKeyDown(ev: KeyboardEvent) {
@@ -1126,6 +1350,7 @@ function onDocKeyDown(ev: KeyboardEvent) {
 
 onMounted(() => {
   loadRecentEmojis();
+  loadJarvisContextsByRoom();
   document.addEventListener("pointerdown", onDocPointerDown);
   document.addEventListener("keydown", onDocKeyDown);
 });
@@ -1309,7 +1534,7 @@ async function send() {
 
 function askJarvisQuick() {
   if (!store.activeRoomId) return;
-  openJarvisWithPrompt("");
+  openJarvisPopoverWithPrompt("");
 }
 
 function closeJarvis() {
@@ -1320,9 +1545,91 @@ function submitJarvis() {
   if (!store.activeRoomId) return;
   const p = jarvisPrompt.value.trim();
   if (!p) return;
+  const contexts = currentJarvisContexts.value;
+  const ctxBlock = contexts.length
+    ? [
+        "아래 메시지들을 참고해서 답해줘.",
+        "",
+        ...contexts.flatMap((c, idx) => [
+          `[메시지 ${idx + 1}] (${c.label} · ${c.time})`,
+          c.content,
+          ""
+        ]),
+        "[질문/요청]",
+        p
+      ].join("\n")
+    : p;
   jarvisOpen.value = false;
-  store.askJarvis(store.activeRoomId, p);
+  jarvisPopoverOpen.value = false;
+  pendingAiContextRoomId.value = store.activeRoomId;
+  store.askJarvis(store.activeRoomId, ctxBlock);
 }
+
+async function openJarvisPopoverWithPrompt(prompt: string) {
+  if (!store.activeRoomId) return;
+  closeEmojiPicker();
+  closeAttachMenu();
+  jarvisPopoverOpen.value = true;
+  jarvisPrompt.value = prompt;
+  await nextTick();
+  focusJarvisPrompt();
+}
+
+async function openJarvisPopoverFromMessage(m: any) {
+  if (!store.activeRoomId) return;
+  closeEmojiPicker();
+  closeAttachMenu();
+  jarvisPopoverOpen.value = true;
+
+  const content = String(m?.content ?? "").trim();
+  const rid = store.activeRoomId;
+  const ctx = content && content !== DELETED_PLACEHOLDER ? content : "";
+  if (rid && ctx) {
+    addJarvisContextToRoom(rid, {
+      content: ctx,
+      label: labelFor(m),
+      time: formatChatTime(m?.createdAt),
+      source: "message",
+      messageId: String(m?.id ?? ""),
+      createdAt: Date.now()
+    });
+  }
+
+  // 사용자가 "질문/요청"을 바로 입력하도록 prompt는 비워둠
+  jarvisPrompt.value = "";
+  await nextTick();
+  focusJarvisPrompt();
+}
+
+function closeJarvisPopover() {
+  jarvisPopoverOpen.value = false;
+}
+
+watch(
+  () => store.activeMessages.length,
+  (len, prev) => {
+    if (!store.activeRoomId) return;
+    if (!prev || len <= prev) return;
+    if (!pendingAiContextRoomId.value) return;
+    if (pendingAiContextRoomId.value !== store.activeRoomId) return;
+
+    const last = store.activeMessages[len - 1];
+    if (!last) return;
+    if (!isBot(last)) return;
+    const content = String(last?.content ?? "").trim();
+    if (!content || content === DELETED_PLACEHOLDER) return;
+
+    addJarvisContextToRoom(store.activeRoomId, {
+      content,
+      label: "ai",
+      time: formatChatTime(last?.createdAt ?? Date.now()),
+      source: "ai",
+      messageId: String(last?.id ?? ""),
+      createdAt: Date.now()
+    });
+    pendingAiContextRoomId.value = "";
+  }
+);
 
 function openInvite() {
   inviteQuery.value = "";

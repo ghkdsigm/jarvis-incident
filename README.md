@@ -1,4 +1,4 @@
-# DW-Brain (Desktop + Server) - Monorepo
+# DW-BRAIN (Desktop + Server) - Monorepo
 
 Teams보다 가볍게, “항상 위(Always-on-top)”로 떠있는 데스크톱 채팅 클라이언트와 실시간 동기화 서버/AI 워커를 함께 제공합니다.
 

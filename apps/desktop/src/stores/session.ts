@@ -5,6 +5,7 @@ import type { MessageDto } from "@jarvis/shared";
 
 const LS_AUTOLOGIN = "jarvis.desktop.autologin";
 const LS_DEVCREDS = "jarvis.desktop.devCreds";
+const LS_AUTH = "jarvis.desktop.auth";
 
 type DevCreds = { email: string; name: string };
 
@@ -59,6 +60,34 @@ export const useSessionStore = defineStore("session", {
         this.savedName = "";
       }
 
+      // Try restore auth first (keep login on refresh)
+      try {
+        const raw = localStorage.getItem(LS_AUTH);
+        const parsed = raw ? (JSON.parse(raw) as { token?: string; user?: any }) : null;
+        if (parsed?.token && parsed?.user) {
+          this.token = parsed.token;
+          this.user = parsed.user;
+
+          this.ws = new WsClient();
+          this.ws.connect(this.token);
+          this.ws.onEvent((evt: any) => this.handleEvent(evt));
+          this.ws.onOpen(() => {
+            if (this.activeRoomId) this.ws?.send({ type: "room.join", roomId: this.activeRoomId });
+          });
+
+          // Validate token by loading rooms; if it fails, fall back to autologin/manual login.
+          try {
+            await this.reloadRooms();
+            this.authReady = true;
+            return;
+          } catch {
+            this.logout();
+          }
+        }
+      } catch {
+        // ignore restore errors
+      }
+
       if (this.autoLoginEnabled && this.savedEmail && this.savedName) {
         try {
           await this.login(this.savedEmail, this.savedName);
@@ -110,6 +139,12 @@ export const useSessionStore = defineStore("session", {
       this.ws.onOpen(() => {
         if (this.activeRoomId) this.ws?.send({ type: "room.join", roomId: this.activeRoomId });
       });
+
+      try {
+        localStorage.setItem(LS_AUTH, JSON.stringify({ token, user }));
+      } catch {
+        // ignore
+      }
       await this.reloadRooms();
     },
 
@@ -123,6 +158,11 @@ export const useSessionStore = defineStore("session", {
       this.ws = null;
       this.token = "";
       this.user = null;
+      try {
+        localStorage.removeItem(LS_AUTH);
+      } catch {
+        // ignore
+      }
       this.rooms = [];
       this.activeRoomId = "";
       this.messagesByRoom = {};
@@ -190,16 +230,17 @@ export const useSessionStore = defineStore("session", {
         this.ws.send({ type: "room.join", roomId });
       }
 
+      const clientTempId = `local:${Date.now()}`;
       // optimistic append so user sees it immediately
       this.pushLocal(roomId, {
-        id: `local:${Date.now()}`,
+        id: clientTempId,
         roomId,
         senderType: "user",
         senderUserId: this.user?.id ?? null,
         content,
         createdAt: new Date().toISOString()
       });
-      this.ws.send({ type: "message.send", roomId, content });
+      this.ws.send({ type: "message.send", roomId, content, clientTempId });
     },
 
     editMessage(roomId: string, messageId: string, content: string) {
@@ -508,15 +549,24 @@ export const useSessionStore = defineStore("session", {
       if (evt.type === "message.new" || evt.type === "bot.done") {
         const m = evt.payload as MessageDto;
         const list = this.messagesByRoom[m.roomId] ?? [];
-        const last = list[list.length - 1];
-        const lastLooksLocal =
-          !!last && typeof last.id === "string" && last.id.startsWith("local:") && last.senderType === "user";
-        // best-effort de-dupe: replace last optimistic message if it matches
-        if (lastLooksLocal && last.content === m.content) {
-          this.messagesByRoom[m.roomId] = [...list.slice(0, -1), m];
-        } else {
-          this.messagesByRoom[m.roomId] = [...list, m];
+
+        // Prefer deterministic reconciliation when server echoes clientTempId
+        const tempId = (m as any).clientTempId as string | undefined;
+        if (tempId) {
+          const idx = list.findIndex((x) => x.id === tempId);
+          if (idx >= 0) {
+            const next = [...list];
+            next[idx] = m;
+            this.messagesByRoom[m.roomId] = next;
+            return;
+          }
         }
+
+        // Fallback: best-effort de-dupe by matching the last optimistic message
+        const last = list[list.length - 1];
+        const lastLooksLocal = !!last && typeof last.id === "string" && last.id.startsWith("local:") && last.senderType === "user";
+        if (lastLooksLocal && last.content === m.content) this.messagesByRoom[m.roomId] = [...list.slice(0, -1), m];
+        else this.messagesByRoom[m.roomId] = [...list, m];
         return;
       }
 

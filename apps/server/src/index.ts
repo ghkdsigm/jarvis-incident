@@ -6,6 +6,7 @@ import authPlugin from "./plugins/auth.js";
 import { devAuthRoutes } from "./routes/devAuth.js";
 import { roomRoutes } from "./routes/rooms.js";
 import { translateRoutes } from "./routes/translate.js";
+import { userRoutes } from "./routes/users.js";
 import { registerWs } from "./ws/hub.js";
 
 const app = Fastify({ logger: true });
@@ -23,6 +24,7 @@ app.get("/health", async () => ({ ok: true }));
 await app.register(devAuthRoutes);
 await app.register(roomRoutes);
 await app.register(translateRoutes);
+await app.register(userRoutes);
 await registerWs(app);
 
 app.listen({ port: env.port, host: env.host }).catch((err) => {

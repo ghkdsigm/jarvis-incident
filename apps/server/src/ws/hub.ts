@@ -10,6 +10,7 @@ type WsConn = { socket: any; userId: string; rooms: Set<string> };
 export async function registerWs(app: FastifyInstance) {
   const conns = new Set<WsConn>();
   const roomIndex = new Map<string, Set<WsConn>>();
+  const userConnCount = new Map<string, number>();
 
   const DELETED_PLACEHOLDER = "(삭제된 메시지)";
 
@@ -39,6 +40,19 @@ export async function registerWs(app: FastifyInstance) {
     }
   }
 
+  async function ensureJoined(conn: WsConn, roomId: string): Promise<boolean> {
+    if (conn.rooms.has(roomId)) return true;
+    const membership = await prisma.roomMember.findUnique({
+      where: { roomId_userId: { roomId, userId: conn.userId } }
+    });
+    if (!membership) return false;
+
+    conn.rooms.add(roomId);
+    if (!roomIndex.has(roomId)) roomIndex.set(roomId, new Set());
+    roomIndex.get(roomId)!.add(conn);
+    return true;
+  }
+
   await redisSub.subscribe(env.pubsubChannel);
   redisSub.on("message", (_channel, payload) => {
     try {
@@ -63,6 +77,21 @@ export async function registerWs(app: FastifyInstance) {
     const conn: WsConn = { socket: connection.socket, userId: user.sub, rooms: new Set() };
     conns.add(conn);
 
+    // Presence: mark online when first socket connects for this user
+    const prevCount = userConnCount.get(conn.userId) ?? 0;
+    userConnCount.set(conn.userId, prevCount + 1);
+    if (prevCount === 0) {
+      prisma.user
+        .update({
+          where: { id: conn.userId },
+          // Cast to avoid stale Prisma Client type caches in some editors/linters.
+          data: ({ isOnline: true, lastSeenAt: new Date() } as any)
+        })
+        .catch(() => {
+          // ignore
+        });
+    }
+
     connection.socket.on("message", async (raw: any) => {
       let parsed: any;
       try {
@@ -82,17 +111,11 @@ export async function registerWs(app: FastifyInstance) {
 
       if (msg.type === "room.join") {
         const roomId = msg.roomId;
-        const membership = await prisma.roomMember.findUnique({
-          where: { roomId_userId: { roomId, userId: conn.userId } }
-        });
-        if (!membership) {
+        const ok = await ensureJoined(conn, roomId);
+        if (!ok) {
           connection.socket.send(JSON.stringify({ type: "error", payload: { message: "FORBIDDEN" } }));
           return;
         }
-
-        conn.rooms.add(roomId);
-        if (!roomIndex.has(roomId)) roomIndex.set(roomId, new Set());
-        roomIndex.get(roomId)!.add(conn);
 
         connection.socket.send(JSON.stringify({ type: "room.joined", payload: { roomId } }));
         return;
@@ -138,10 +161,8 @@ export async function registerWs(app: FastifyInstance) {
 
       if (msg.type === "message.send") {
         const roomId = msg.roomId;
-        if (!conn.rooms.has(roomId)) {
-          connection.socket.send(JSON.stringify({ type: "error", payload: { message: "NOT_IN_ROOM" } }));
-          return;
-        }
+        const ok = await ensureJoined(conn, roomId);
+        if (!ok) return connection.socket.send(JSON.stringify({ type: "error", payload: { message: "FORBIDDEN" } }));
 
         const created = await prisma.message.create({
           data: {
@@ -173,10 +194,8 @@ export async function registerWs(app: FastifyInstance) {
 
       if (msg.type === "message.edit") {
         const roomId = msg.roomId;
-        if (!conn.rooms.has(roomId)) {
-          connection.socket.send(JSON.stringify({ type: "error", payload: { message: "NOT_IN_ROOM" } }));
-          return;
-        }
+        const ok = await ensureJoined(conn, roomId);
+        if (!ok) return connection.socket.send(JSON.stringify({ type: "error", payload: { message: "FORBIDDEN" } }));
 
         // Only author can edit their own user message.
         const existing = await prisma.message.findUnique({ where: { id: msg.messageId } });
@@ -212,10 +231,8 @@ export async function registerWs(app: FastifyInstance) {
 
       if (msg.type === "message.delete") {
         const roomId = msg.roomId;
-        if (!conn.rooms.has(roomId)) {
-          connection.socket.send(JSON.stringify({ type: "error", payload: { message: "NOT_IN_ROOM" } }));
-          return;
-        }
+        const ok = await ensureJoined(conn, roomId);
+        if (!ok) return connection.socket.send(JSON.stringify({ type: "error", payload: { message: "FORBIDDEN" } }));
 
         const existing = await prisma.message.findUnique({ where: { id: msg.messageId } });
         if (!existing || existing.roomId !== roomId) {
@@ -242,10 +259,8 @@ export async function registerWs(app: FastifyInstance) {
 
       if (msg.type === "jarvis.request") {
         const roomId = msg.roomId;
-        if (!conn.rooms.has(roomId)) {
-          connection.socket.send(JSON.stringify({ type: "error", payload: { message: "NOT_IN_ROOM" } }));
-          return;
-        }
+        const ok = await ensureJoined(conn, roomId);
+        if (!ok) return connection.socket.send(JSON.stringify({ type: "error", payload: { message: "FORBIDDEN" } }));
         await aiQueue.add("jarvis", {
           roomId,
           messageId: msg.messageId ?? null,
@@ -305,30 +320,24 @@ export async function registerWs(app: FastifyInstance) {
 
       if (msg.type === "rtc.offer") {
         const roomId = msg.roomId;
-        if (!conn.rooms.has(roomId)) {
-          connection.socket.send(JSON.stringify({ type: "error", payload: { message: "NOT_IN_ROOM" } }));
-          return;
-        }
+        const ok = await ensureJoined(conn, roomId);
+        if (!ok) return connection.socket.send(JSON.stringify({ type: "error", payload: { message: "FORBIDDEN" } }));
         broadcast(roomId, { type: "rtc.offer", payload: { roomId, fromUserId: conn.userId, sdp: msg.sdp } });
         return;
       }
 
       if (msg.type === "rtc.answer") {
         const roomId = msg.roomId;
-        if (!conn.rooms.has(roomId)) {
-          connection.socket.send(JSON.stringify({ type: "error", payload: { message: "NOT_IN_ROOM" } }));
-          return;
-        }
+        const ok = await ensureJoined(conn, roomId);
+        if (!ok) return connection.socket.send(JSON.stringify({ type: "error", payload: { message: "FORBIDDEN" } }));
         broadcast(roomId, { type: "rtc.answer", payload: { roomId, fromUserId: conn.userId, sdp: msg.sdp } });
         return;
       }
 
       if (msg.type === "rtc.ice") {
         const roomId = msg.roomId;
-        if (!conn.rooms.has(roomId)) {
-          connection.socket.send(JSON.stringify({ type: "error", payload: { message: "NOT_IN_ROOM" } }));
-          return;
-        }
+        const ok = await ensureJoined(conn, roomId);
+        if (!ok) return connection.socket.send(JSON.stringify({ type: "error", payload: { message: "FORBIDDEN" } }));
         broadcast(roomId, {
           type: "rtc.ice",
           payload: { roomId, fromUserId: conn.userId, candidate: msg.candidate }
@@ -338,10 +347,8 @@ export async function registerWs(app: FastifyInstance) {
 
       if (msg.type === "rtc.hangup") {
         const roomId = msg.roomId;
-        if (!conn.rooms.has(roomId)) {
-          connection.socket.send(JSON.stringify({ type: "error", payload: { message: "NOT_IN_ROOM" } }));
-          return;
-        }
+        const ok = await ensureJoined(conn, roomId);
+        if (!ok) return connection.socket.send(JSON.stringify({ type: "error", payload: { message: "FORBIDDEN" } }));
         broadcast(roomId, { type: "rtc.hangup", payload: { roomId, fromUserId: conn.userId } });
         return;
       }
@@ -352,6 +359,23 @@ export async function registerWs(app: FastifyInstance) {
       for (const roomId of conn.rooms) {
         roomIndex.get(roomId)?.delete(conn);
         if (roomIndex.get(roomId)?.size === 0) roomIndex.delete(roomId);
+      }
+
+      // Presence: mark offline when last socket closes
+      const prev = userConnCount.get(conn.userId) ?? 0;
+      const next = Math.max(0, prev - 1);
+      if (next === 0) userConnCount.delete(conn.userId);
+      else userConnCount.set(conn.userId, next);
+      if (prev > 0 && next === 0) {
+        prisma.user
+          .update({
+            where: { id: conn.userId },
+            // Cast to avoid stale Prisma Client type caches in some editors/linters.
+            data: ({ isOnline: false, lastSeenAt: new Date() } as any)
+          })
+          .catch(() => {
+            // ignore
+          });
       }
     });
   });

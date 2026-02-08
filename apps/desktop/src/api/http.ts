@@ -51,3 +51,19 @@ export async function translateText(
   if (!res.ok) throw new Error(`Translate failed: ${res.status}`);
   return await res.json();
 }
+
+export async function fetchUsers(
+  token: string,
+  q?: string,
+  opts?: { includeMe?: boolean }
+): Promise<Array<{ id: string; email: string; name: string; isOnline: boolean; lastSeenAt: string | null }>> {
+  const url = new URL(`${API_BASE}/users`);
+  const qq = (q ?? "").trim();
+  if (qq) url.searchParams.set("q", qq);
+  if (opts?.includeMe) url.searchParams.set("includeMe", "1");
+  const res = await fetch(url, {
+    headers: { Authorization: `Bearer ${token}` }
+  });
+  if (!res.ok) throw new Error(`Users failed: ${res.status}`);
+  return await res.json();
+}

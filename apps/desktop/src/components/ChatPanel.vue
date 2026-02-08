@@ -166,6 +166,38 @@
                     />
                   </svg>
                 </button>
+                <div v-if="canEditOrDelete(m)" class="relative">
+                  <button
+                    type="button"
+                    class="h-5 w-5 inline-flex items-center justify-center rounded t-btn-secondary shrink-0 bg-transparent border-0"
+                    title="메시지 메뉴"
+                    aria-label="메시지 메뉴"
+                    @pointerdown.stop
+                    @click.stop="toggleMessageMenu(m)"
+                  >
+                    ⋯
+                  </button>
+                  <div
+                    v-if="messageMenuOpenId === m.id"
+                    class="absolute z-10 mt-1 right-0 w-[120px] rounded border t-border t-surface shadow-lg p-1"
+                    @pointerdown.stop
+                  >
+                    <button
+                      type="button"
+                      class="w-full text-left px-2 py-1.5 text-xs rounded t-btn-secondary bg-transparent border-0 hover:t-row"
+                      @click="startEdit(m); closeMessageMenu()"
+                    >
+                      수정
+                    </button>
+                    <button
+                      type="button"
+                      class="w-full text-left px-2 py-1.5 text-xs rounded t-btn-danger bg-transparent border-0 hover:t-row"
+                      @click="confirmDelete(m); closeMessageMenu()"
+                    >
+                      삭제
+                    </button>
+                  </div>
+                </div>
               </div>
 
               <div
@@ -193,14 +225,9 @@
                     {{ isDeleted(m) ? "(삭제된 메시지)" : m.content }}
                   </div>
 
-                  <div
-                    v-if="canEditOrDelete(m)"
-                    class="mt-2 hidden group-hover:flex items-center justify-end gap-2"
-                  >
+                  <div v-if="canEditOrDelete(m)" class="mt-2 hidden group-hover:flex items-center justify-end gap-2">
                     <button class="px-2 py-1 text-xs rounded t-btn-secondary" @click="startEdit(m)">수정</button>
-                    <button class="px-2 py-1 text-xs rounded t-btn-danger" @click="confirmDelete(m)">
-                      삭제
-                    </button>
+                    <button class="px-2 py-1 text-xs rounded t-btn-danger" @click="confirmDelete(m)">삭제</button>
                   </div>
                 </template>
               </div>
@@ -224,14 +251,64 @@
                     <span class="font-mono">{{ labelFor(m) }}</span>
                     <span class="tabular-nums">{{ formatChatTime(m.createdAt) }}</span>
                     <span v-if="isDeleted(m)" class="t-text-faint">삭제됨</span>
+                    <div v-if="canEditOrDelete(m)" class="ml-auto relative">
+                      <button
+                        type="button"
+                        class="h-5 w-5 inline-flex items-center justify-center rounded t-btn-secondary shrink-0 bg-transparent border-0"
+                        title="메시지 메뉴"
+                        aria-label="메시지 메뉴"
+                        @pointerdown.stop
+                        @click.stop="toggleMessageMenu(m)"
+                      >
+                        ⋯
+                      </button>
+                      <div
+                        v-if="messageMenuOpenId === m.id"
+                        class="absolute z-10 mt-1 right-0 w-[120px] rounded border t-border t-surface shadow-lg p-1"
+                        @pointerdown.stop
+                      >
+                        <button
+                          type="button"
+                          class="w-full text-left px-2 py-1.5 text-xs rounded t-btn-secondary bg-transparent border-0 hover:t-row"
+                          @click="startEdit(m); closeMessageMenu()"
+                        >
+                          수정
+                        </button>
+                        <button
+                          type="button"
+                          class="w-full text-left px-2 py-1.5 text-xs rounded t-btn-danger bg-transparent border-0 hover:t-row"
+                          @click="confirmDelete(m); closeMessageMenu()"
+                        >
+                          삭제
+                        </button>
+                      </div>
+                    </div>
                   </div>
                   <div
                     class="mt-1 rounded-2xl border px-3 py-2 text-sm whitespace-pre-wrap break-words"
                     :class="bubbleClass(m)"
                   >
-                    <div :class="isDeleted(m) ? 'italic t-text-muted' : ''">
-                      {{ isDeleted(m) ? "(삭제된 메시지)" : m.content }}
-                    </div>
+                    <template v-if="editingId === m.id">
+                      <textarea
+                        v-model="editingText"
+                        class="w-full min-h-[72px] px-2 py-1 text-sm rounded t-input t-input-strong"
+                      />
+                      <div class="mt-2 flex items-center justify-end gap-2">
+                        <button class="px-2 py-1 text-xs rounded t-btn-secondary" @click="cancelEdit">취소</button>
+                        <button
+                          class="px-2 py-1 text-xs rounded t-btn-primary disabled:opacity-50"
+                          :disabled="!editingText.trim().length"
+                          @click="submitEdit(m)"
+                        >
+                          저장
+                        </button>
+                      </div>
+                    </template>
+                    <template v-else>
+                      <div :class="isDeleted(m) ? 'italic t-text-muted' : ''">
+                        {{ isDeleted(m) ? "(삭제된 메시지)" : m.content }}
+                      </div>
+                    </template>
                   </div>
                 </div>
               </div>
@@ -544,19 +621,24 @@
               <div
                 v-for="c in currentJarvisContexts"
                 :key="c.key"
-                class="p-2 rounded border t-border t-row"
+                class="p-2 rounded border t-border t-row cursor-pointer"
+                role="button"
+                tabindex="0"
+                @click="onJarvisContextClick(c.content)"
+                @keydown.enter="onJarvisContextClick(c.content)"
+                @keydown.space.prevent="onJarvisContextClick(c.content)"
               >
                 <div class="flex items-center justify-between gap-2">
                   <div class="text-[11px] t-text-subtle truncate">{{ c.label }} · {{ c.time }}</div>
                   <button
                     type="button"
                     class="px-2 py-1 text-[11px] rounded t-btn-secondary shrink-0"
-                    @click="removeCurrentRoomJarvisContext(c.key)"
+                    @click.stop="removeCurrentRoomJarvisContext(c.key)"
                   >
                     해제
                   </button>
                 </div>
-                <div class="mt-1 text-xs t-text-muted whitespace-pre-wrap break-words max-h-[92px] overflow-auto t-scrollbar">
+                <div class="mt-1 text-xs t-text-muted break-words jarvis-context-preview">
                   {{ c.content }}
                 </div>
               </div>
@@ -692,17 +774,32 @@
           :key="c.id"
           class="flex items-center gap-3 px-3 py-2 cursor-pointer border-b t-border last:border-b-0 t-row"
         >
-          <input v-model="selectedColleagueIds" class="t-accent" type="checkbox" :value="c.id" />
+          <input
+            v-model="selectedColleagueIds"
+            class="t-accent"
+            type="checkbox"
+            :value="c.id"
+            :disabled="c.id === store.user?.id"
+            :title="c.id === store.user?.id ? '본인은 초대할 수 없습니다.' : ''"
+          />
 
-          <div class="w-10 h-10 rounded-full t-avatar flex items-center justify-center text-xs">
-            {{ c.name.slice(0, 1) }}
+          <div class="relative">
+            <div class="w-10 h-10 rounded-full t-avatar flex items-center justify-center text-xs">
+              {{ c.name.slice(0, 1) }}
+            </div>
+            <div
+              class="absolute -right-0.5 -bottom-0.5 w-3 h-3 rounded-full border t-border"
+              :class="c.isOnline ? 'bg-emerald-500' : 'bg-red-500'"
+              :title="c.isOnline ? '로그인중' : '로그아웃됨'"
+              aria-label="online-status"
+            />
           </div>
 
           <div class="min-w-0 flex-1">
             <div class="flex items-center gap-2 min-w-0">
-              <div class="text-xs t-text-muted truncate">{{ c.team }}</div>
+              <div class="text-xs t-text-muted truncate">{{ c.team || c.email }}</div>
               <div class="text-sm font-medium truncate">{{ c.name }}</div>
-              <div class="text-xs t-text-subtle shrink-0">{{ c.role }}</div>
+              <div v-if="c.role" class="text-xs t-text-subtle shrink-0">{{ c.role }}</div>
             </div>
             <div class="mt-1 flex flex-wrap gap-1">
               <span
@@ -716,7 +813,13 @@
           </div>
         </label>
 
-        <div v-if="!filteredColleagues.length" class="p-3 text-xs t-text-subtle">검색 결과가 없습니다.</div>
+        <div v-if="inviteErrorText" class="p-3 text-xs text-[#FB4F4F]">
+          {{ inviteErrorText }}
+        </div>
+        <div v-else-if="inviteLoading" class="p-3 text-xs t-text-subtle">불러오는 중...</div>
+        <div v-else-if="!filteredColleagues.length" class="p-3 text-xs t-text-subtle">
+          동료가 없습니다. (다른 계정으로 한 번 로그인하면 목록에 표시됩니다)
+        </div>
       </div>
     </div>
     <template #footer>
@@ -792,7 +895,7 @@ import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from "vue"
 import { useSessionStore } from "../stores/session";
 import { useWindowStore } from "../stores/window";
 import { isJarvisTrigger, stripJarvisPrefix } from "@jarvis/shared";
-import { translateText } from "../api/http";
+import { fetchUsers, translateText } from "../api/http";
 import CommonModal from "./ui/CommonModal.vue";
 
 const store = useSessionStore();
@@ -1428,6 +1531,10 @@ async function onJarvisSuggestionClick(prompt: string, ev: MouseEvent) {
   await applyJarvisSuggestion(prompt);
 }
 
+async function onJarvisContextClick(content: string) {
+  await applyJarvisSuggestion(content);
+}
+
 async function applyJarvisSuggestion(prompt: string) {
   jarvisPrompt.value = prompt;
   await nextTick();
@@ -1646,6 +1753,10 @@ function onDocPointerDown(ev: PointerEvent) {
   if (jarvisPopoverOpen.value) {
     if (!jarvisPopover.value?.contains(t) && !jarvisButton.value?.contains(t)) closeJarvisPopover();
   }
+  if (messageMenuOpenId.value) {
+    // 메뉴 내부 클릭은 @pointerdown.stop으로 막음. 여기까지 왔으면 바깥 클릭.
+    closeMessageMenu();
+  }
 }
 
 function onDocKeyDown(ev: KeyboardEvent) {
@@ -1665,29 +1776,61 @@ onBeforeUnmount(() => {
   clearAttachments();
 });
 
-type Colleague = { id: string; team: string; name: string; role: string; tags: string[] };
+type Colleague = {
+  id: string;
+  email: string;
+  name: string;
+  isOnline: boolean;
+  lastSeenAt?: string | null;
+  team?: string;
+  role?: string;
+  tags: string[];
+};
 const inviteOpen = ref(false);
 const inviteQuery = ref("");
 const selectedColleagueIds = ref<string[]>([]);
-const colleagues = ref<Colleague[]>([
-  { id: "u-1", team: "플랫폼팀", name: "김동화", role: "FE", tags: ["incident", "ui", "triage"] },
-  { id: "u-2", team: "플랫폼팀", name: "박지원", role: "BE", tags: ["api", "websocket"] },
-  { id: "u-3", team: "SRE팀", name: "이서연", role: "SRE", tags: ["oncall", "k8s", "observability"] },
-  { id: "u-4", team: "보안팀", name: "최민수", role: "Security", tags: ["auth", "audit"] },
-  { id: "u-5", team: "CS팀", name: "정하늘", role: "CS", tags: ["support", "handoff"] }
-]);
+const colleagues = ref<Colleague[]>([]);
+const inviteLoading = ref(false);
+const inviteErrorText = ref("");
+
+let invitePollTimer: any = null;
+
+async function loadColleagues() {
+  if (!store.token) return;
+  inviteLoading.value = true;
+  inviteErrorText.value = "";
+  try {
+    const users = await fetchUsers(store.token, undefined, { includeMe: true });
+    colleagues.value = users.map((u) => ({
+      id: u.id,
+      email: u.email,
+      name: u.name,
+      isOnline: !!u.isOnline,
+      lastSeenAt: u.lastSeenAt,
+      // optional fields (kept for UI compatibility)
+      team: "",
+      role: "",
+      tags: []
+    }));
+  } catch {
+    inviteErrorText.value = "동료 목록을 불러오지 못했습니다. (서버 연결/로그인 상태를 확인해주세요)";
+  } finally {
+    inviteLoading.value = false;
+  }
+}
 
 const filteredColleagues = computed(() => {
   const q = inviteQuery.value.trim().toLowerCase();
   if (!q) return colleagues.value;
   return colleagues.value.filter((c) => {
-    const hay = [c.team, c.name, c.role, ...c.tags].join(" ").toLowerCase();
+    const hay = [c.team ?? "", c.email ?? "", c.name ?? "", c.role ?? "", ...(c.tags ?? [])].join(" ").toLowerCase();
     return hay.includes(q);
   });
 });
 
 const editingId = ref<string>("");
 const editingText = ref<string>("");
+const messageMenuOpenId = ref<string>("");
 const deleteConfirmOpen = ref(false);
 const deleteTarget = ref<any | null>(null);
 
@@ -1757,6 +1900,14 @@ function submitEdit(m: any) {
   if (!v) return;
   store.editMessage(store.activeRoomId, m.id, v);
   cancelEdit();
+}
+
+function toggleMessageMenu(m: any) {
+  if (!canEditOrDelete(m)) return;
+  messageMenuOpenId.value = messageMenuOpenId.value === m.id ? "" : m.id;
+}
+function closeMessageMenu() {
+  messageMenuOpenId.value = "";
 }
 
 function confirmDelete(m: any) {
@@ -1938,12 +2089,28 @@ watch(
 function openInvite() {
   inviteQuery.value = "";
   selectedColleagueIds.value = [];
+  loadColleagues();
   inviteOpen.value = true;
 }
 
 function closeInvite() {
   inviteOpen.value = false;
 }
+
+watch(
+  inviteOpen,
+  (v) => {
+    if (invitePollTimer) {
+      clearInterval(invitePollTimer);
+      invitePollTimer = null;
+    }
+    if (v) {
+      // refresh presence while the modal is open
+      invitePollTimer = setInterval(loadColleagues, 5000);
+    }
+  },
+  { immediate: true }
+);
 
 function submitInvite() {
   // 아직 시스템에 동료/초대 데이터가 없으니 UI만 우선.
@@ -2144,5 +2311,15 @@ watch(
 .t-dragscroll-x {
   user-select: none;
   touch-action: pan-y;
+}
+
+.jarvis-context-preview {
+  display: -webkit-box;
+  line-clamp: 2;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: pre-line;
 }
 </style>

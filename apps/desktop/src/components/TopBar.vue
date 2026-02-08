@@ -118,8 +118,62 @@
           />
         </svg>
       </button>
+
+      <button
+        v-if="store.token"
+        class="h-8 w-8 inline-flex items-center justify-center rounded border transition-colors t-btn-secondary"
+        title="로그아웃"
+        aria-label="로그아웃"
+        @click="openLogoutConfirm"
+      >
+        <!-- logout -->
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+          <path
+            d="M10 7V6a2 2 0 0 1 2-2h7a2 2 0 0 1 2 2v12a2 2 0 0 1-2 2h-7a2 2 0 0 1-2-2v-1"
+            stroke="currentColor"
+            stroke-width="1.8"
+            stroke-linecap="round"
+            stroke-linejoin="round"
+          />
+          <path
+            d="M15 12H3m0 0 3-3M3 12l3 3"
+            stroke="currentColor"
+            stroke-width="1.8"
+            stroke-linecap="round"
+            stroke-linejoin="round"
+          />
+        </svg>
+      </button>
     </div>
   </div>
+
+  <CommonModal :open="logoutModalOpen" title="로그아웃" :closeOnBackdrop="logoutModalStep !== 'confirm'" @close="closeLogoutModal">
+    <div v-if="logoutModalStep === 'confirm'" class="text-sm">
+      로그아웃하시겠습니까?
+    </div>
+    <div v-else class="text-sm">
+      로그아웃되었습니다.
+    </div>
+
+    <template #footer>
+      <div class="flex items-center justify-end gap-2">
+        <button
+          v-if="logoutModalStep === 'confirm'"
+          class="px-3 py-2 text-sm rounded t-btn-secondary"
+          @click="closeLogoutModal"
+        >
+          취소
+        </button>
+        <button
+          class="px-3 py-2 text-sm rounded"
+          :class="logoutModalStep === 'confirm' ? 't-btn-primary' : 't-btn-secondary'"
+          @click="onLogoutModalPrimary"
+        >
+          확인
+        </button>
+      </div>
+    </template>
+  </CommonModal>
 </template>
 
 <script setup lang="ts">
@@ -127,6 +181,7 @@ import { computed, onMounted, ref } from "vue";
 import { getActiveTheme, toggleTheme, type ThemeMode } from "../theme";
 import { useSessionStore } from "../stores/session";
 import { useWindowStore } from "../stores/window";
+import CommonModal from "./ui/CommonModal.vue";
 
 const emit = defineEmits<{ (e: "open-rooms"): void }>();
 
@@ -137,6 +192,9 @@ const alwaysOnTop = computed(() => windowStore.alwaysOnTop);
 const miniMode = computed(() => windowStore.miniMode);
 const theme = ref<ThemeMode>("dark");
 
+const logoutModalOpen = ref(false);
+const logoutModalStep = ref<"confirm" | "done">("confirm");
+
 onMounted(async () => {
   theme.value = getActiveTheme();
   windowStore.init();
@@ -144,6 +202,27 @@ onMounted(async () => {
 
 function onToggleTheme() {
   theme.value = toggleTheme();
+}
+
+function openLogoutConfirm() {
+  logoutModalStep.value = "confirm";
+  logoutModalOpen.value = true;
+}
+
+function closeLogoutModal() {
+  logoutModalOpen.value = false;
+  logoutModalStep.value = "confirm";
+}
+
+function onLogoutModalPrimary() {
+  if (logoutModalStep.value === "confirm") {
+    // show success message first, then actually logout on next confirm
+    logoutModalStep.value = "done";
+    return;
+  }
+  // done step: logout and close modal (view will switch to LoginView)
+  closeLogoutModal();
+  store.logout();
 }
 
 async function toggleAlwaysOnTop() {

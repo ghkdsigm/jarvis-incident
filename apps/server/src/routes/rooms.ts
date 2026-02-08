@@ -41,6 +41,12 @@ export async function roomRoutes(app: FastifyInstance) {
   app.get("/rooms/:roomId/messages", { preHandler: app.authenticate }, async (req: any) => {
     const roomId = req.params.roomId as string;
     const take = Math.min(Number(req.query.take ?? 50), 200);
+
+    const membership = await prisma.roomMember.findUnique({
+      where: { roomId_userId: { roomId, userId: req.user.sub as string } }
+    });
+    if (!membership) return [];
+
     const messages = await prisma.message.findMany({
       where: { roomId },
       orderBy: { createdAt: "desc" },

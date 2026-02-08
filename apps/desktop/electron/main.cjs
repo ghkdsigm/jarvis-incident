@@ -1,9 +1,64 @@
 const { app, BrowserWindow, ipcMain, globalShortcut } = require("electron");
 const path = require("node:path");
+const http = require("node:http");
 
 let mainWindow = null;
 let alwaysOnTop = true;
 let miniMode = false;
+
+function probeHttp(url) {
+  return new Promise((resolve) => {
+    try {
+      const req = http.request(
+        url,
+        {
+          method: "GET",
+          timeout: 450,
+          headers: { "User-Agent": "jarvis-desktop-dev-probe" }
+        },
+        (res) => {
+          // Any response means server is alive; prefer 2xx/3xx but accept 4xx as "alive" too.
+          resolve(Boolean(res && typeof res.statusCode === "number" && res.statusCode < 500));
+          res.resume();
+        }
+      );
+      req.on("timeout", () => {
+        try {
+          req.destroy();
+        } catch {
+          // ignore
+        }
+        resolve(false);
+      });
+      req.on("error", () => resolve(false));
+      req.end();
+    } catch {
+      resolve(false);
+    }
+  });
+}
+
+async function resolveDevUrl() {
+  // 1) Explicit override always wins
+  if (process.env.VITE_DEV_SERVER_URL) return process.env.VITE_DEV_SERVER_URL;
+
+  // 2) Try the usual Vite ports (Vite auto-increments if 5173 is busy)
+  const host = process.env.VITE_DEV_SERVER_HOST || "localhost";
+  const start = Number(process.env.VITE_DEV_SERVER_PORT || 5173);
+  const candidates = [];
+  for (let p = start; p < start + 20; p++) candidates.push(`http://${host}:${p}`);
+
+  for (const u of candidates) {
+    // probe root so we don't accidentally hit some random 5173 service that's not Vite
+    // (still best-effort; but better than hardcoding 5173)
+    // eslint-disable-next-line no-await-in-loop
+    const ok = await probeHttp(u);
+    if (ok) return u;
+  }
+
+  // 3) Last resort: old default
+  return `http://${host}:5173`;
+}
 
 function createWindow() {
   mainWindow = new BrowserWindow({
@@ -21,9 +76,17 @@ function createWindow() {
   // Dev에서는 Vite dev server를 로드합니다.
   // `VITE_DEV_SERVER_URL`이 없을 때를 대비해 기본 포트를 사용합니다.
   if (!app.isPackaged) {
-    const devUrl = process.env.VITE_DEV_SERVER_URL || "http://localhost:5173";
-    mainWindow.loadURL(devUrl);
-    mainWindow.webContents.openDevTools({ mode: "detach" });
+    resolveDevUrl()
+      .then((devUrl) => {
+        if (!mainWindow) return;
+        mainWindow.loadURL(devUrl);
+        mainWindow.webContents.openDevTools({ mode: "detach" });
+      })
+      .catch(() => {
+        if (!mainWindow) return;
+        mainWindow.loadURL("http://localhost:5173");
+        mainWindow.webContents.openDevTools({ mode: "detach" });
+      });
   } else {
     mainWindow.loadFile(path.join(__dirname, "../dist/index.html"));
   }

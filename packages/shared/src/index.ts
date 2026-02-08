@@ -118,11 +118,15 @@ export type RoomEvent =
 
 export const MessageDtoSchema = z.object({
   id: z.string(),
+  clientTempId: z.string().optional(),
   roomId: z.string(),
   senderType: z.enum(["user", "bot", "system"]),
   senderUserId: z.string().nullable().optional(),
   content: z.string(),
-  createdAt: z.string()
+  createdAt: z.string(),
+  editedAt: z.string().nullable().optional(),
+  deletedAt: z.string().nullable().optional(),
+  deletedByUserId: z.string().nullable().optional()
 });
 export type MessageDto = z.infer<typeof MessageDtoSchema>;
 

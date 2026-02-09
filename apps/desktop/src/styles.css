@@ -49,7 +49,6 @@
 
 @tailwind base;
 @tailwind components;
-@tailwind utilities;
 
 @layer base {
   :root {
@@ -337,3 +336,5 @@
     color: var(--bubble-system-text);
   }
 }
+
+@tailwind utilities;

@@ -124,7 +124,7 @@
       <div
         v-if="!isTranslateOn"
         ref="scroller"
-        class="h-full overflow-auto space-y-2 t-surface t-scrollbar"
+        class="h-full overflow-auto space-y-2 t-surface t-scrollbar dark:bg-[#111] bg-[#eee]"
         :class="isMiniMode ? 'p-2' : 'p-3'"
         :style="{ opacity: String(chatOpacity) }"
       >
@@ -463,7 +463,13 @@
         </div>
       </div>
       <div class="flex gap-2">
-        <div class="relative flex-1 flex gap-2">
+        <div
+          class="relative flex-1 flex gap-2"
+          @dragenter="onComposerDragEnter"
+          @dragover="onComposerDragOver"
+          @dragleave="onComposerDragLeave"
+          @drop="onComposerDrop"
+        >
           <input
             v-model="text"
             ref="textInput"
@@ -503,8 +509,22 @@
           >
             <div class="flex items-center justify-between gap-2 mb-2">
               <div class="text-xs t-text-muted">첨부</div>
-              <button type="button" class="px-2 py-1 text-xs rounded t-btn-secondary" @click="closeAttachMenu">
-                닫기
+              <button
+                type="button"
+                class="h-7 w-7 inline-flex items-center justify-center rounded border transition-colors t-btn-secondary"
+                title="닫기"
+                aria-label="닫기"
+                @click="closeAttachMenu"
+              >
+                <!-- close (X) -->
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+                  <path
+                    d="M18 6 6 18M6 6l12 12"
+                    stroke="currentColor"
+                    stroke-width="1.8"
+                    stroke-linecap="round"
+                  />
+                </svg>
               </button>
             </div>
             <div class="grid grid-cols-2 gap-2">
@@ -521,8 +541,22 @@
           >
             <div class="flex items-center justify-between gap-2 mb-2">
               <div class="text-xs t-text-muted">이모티콘</div>
-              <button type="button" class="px-2 py-1 text-xs rounded t-btn-secondary" @click="closeEmojiPicker">
-                닫기
+              <button
+                type="button"
+                class="h-7 w-7 inline-flex items-center justify-center rounded border transition-colors t-btn-secondary"
+                title="닫기"
+                aria-label="닫기"
+                @click="closeEmojiPicker"
+              >
+                <!-- close (X) -->
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+                  <path
+                    d="M18 6 6 18M6 6l12 12"
+                    stroke="currentColor"
+                    stroke-width="1.8"
+                    stroke-linecap="round"
+                  />
+                </svg>
               </button>
             </div>
 
@@ -548,9 +582,16 @@
               </button>
             </div>
           </div>
+
+          <div v-if="composerDropActive" class="composer-drop-overlay absolute inset-0 z-30 rounded">
+            <div class="composer-drop-card">
+              <div class="composer-drop-title">파일을 놓아 첨부</div>
+              <div class="composer-drop-sub">이미지/파일을 드래그 앤 드롭으로 추가할 수 있어요</div>
+            </div>
+          </div>
         </div>
         <div class="relative shrink-0 flex items-center gap-2">
-          <button class="py-2 text-sm rounded t-btn-secondary" :class="isMiniMode ? 'px-3' : 'px-6'" @click="send">
+          <button class="py-2 text-sm rounded t-btn-secondary" :class="isMiniMode ? 'px-3' : 'px-8'" @click="send">
             전송
           </button>
           <button
@@ -601,8 +642,22 @@
           >
             <div class="flex items-center justify-between gap-2 mb-2">
               <div class="text-xs t-text-muted">AI 질문 및 요청</div>
-              <button type="button" class="px-2 py-1 text-xs rounded t-btn-secondary" @click="closeJarvisPopover">
-                닫기
+              <button
+                type="button"
+                class="h-7 w-7 inline-flex items-center justify-center rounded border transition-colors t-btn-secondary"
+                title="닫기"
+                aria-label="닫기"
+                @click="closeJarvisPopover"
+              >
+                <!-- close (X) -->
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+                  <path
+                    d="M18 6 6 18M6 6l12 12"
+                    stroke="currentColor"
+                    stroke-width="1.8"
+                    stroke-linecap="round"
+                  />
+                </svg>
               </button>
             </div>
 
@@ -618,28 +673,30 @@
                 </button>
               </div>
 
-              <div
-                v-for="c in currentJarvisContexts"
-                :key="c.key"
-                class="p-2 rounded border t-border t-row cursor-pointer"
-                role="button"
-                tabindex="0"
-                @click="onJarvisContextClick(c.content)"
-                @keydown.enter="onJarvisContextClick(c.content)"
-                @keydown.space.prevent="onJarvisContextClick(c.content)"
-              >
-                <div class="flex items-center justify-between gap-2">
-                  <div class="text-[11px] t-text-subtle truncate">{{ c.label }} · {{ c.time }}</div>
-                  <button
-                    type="button"
-                    class="px-2 py-1 text-[11px] rounded t-btn-secondary shrink-0"
-                    @click.stop="removeCurrentRoomJarvisContext(c.key)"
-                  >
-                    해제
-                  </button>
-                </div>
-                <div class="mt-1 text-xs t-text-muted break-words jarvis-context-preview">
-                  {{ c.content }}
+              <div class="jarvis-context-list t-scrollbar space-y-2">
+                <div
+                  v-for="c in currentJarvisContexts"
+                  :key="c.key"
+                  class="p-2 rounded border t-border t-row cursor-pointer"
+                  role="button"
+                  tabindex="0"
+                  @click="onJarvisContextClick(c.content)"
+                  @keydown.enter="onJarvisContextClick(c.content)"
+                  @keydown.space.prevent="onJarvisContextClick(c.content)"
+                >
+                  <div class="flex items-center justify-between gap-2">
+                    <div class="text-[11px] t-text-subtle truncate">{{ c.label }} · {{ c.time }}</div>
+                    <button
+                      type="button"
+                      class="px-2 py-1 text-[11px] rounded t-btn-secondary shrink-0"
+                      @click.stop="removeCurrentRoomJarvisContext(c.key)"
+                    >
+                      해제
+                    </button>
+                  </div>
+                  <div class="mt-1 text-xs t-text-muted break-words jarvis-context-preview">
+                    {{ c.content }}
+                  </div>
                 </div>
               </div>
             </div>
@@ -911,6 +968,8 @@ const attachPopover = ref<HTMLDivElement | null>(null);
 const attachButton = ref<HTMLButtonElement | null>(null);
 const imageInput = ref<HTMLInputElement | null>(null);
 const fileInput = ref<HTMLInputElement | null>(null);
+const composerDropActive = ref(false);
+let composerDragDepth = 0;
 const LS_RECENT_EMOJIS = "jarvis.desktop.recentEmojis";
 const recentEmojis = ref<string[]>([]);
 
@@ -1118,6 +1177,58 @@ function onPickFiles(ev: Event) {
   const files = Array.from(el.files ?? []);
   for (const f of files) addAttachment(f, "file");
   el.value = "";
+}
+
+function dataTransferHasFiles(dt: DataTransfer | null | undefined) {
+  if (!dt) return false;
+  const types = Array.from(dt.types ?? []);
+  if (types.includes("Files")) return true;
+  if (dt.files && dt.files.length > 0) return true;
+  return false;
+}
+
+function onComposerDragEnter(ev: DragEvent) {
+  if (!dataTransferHasFiles(ev.dataTransfer)) return;
+  ev.preventDefault();
+  composerDragDepth += 1;
+  composerDropActive.value = true;
+}
+
+function onComposerDragOver(ev: DragEvent) {
+  if (!dataTransferHasFiles(ev.dataTransfer)) return;
+  ev.preventDefault();
+  if (ev.dataTransfer) ev.dataTransfer.dropEffect = "copy";
+  composerDropActive.value = true;
+}
+
+function onComposerDragLeave(ev: DragEvent) {
+  if (!dataTransferHasFiles(ev.dataTransfer)) return;
+  composerDragDepth = Math.max(0, composerDragDepth - 1);
+  if (composerDragDepth === 0) composerDropActive.value = false;
+}
+
+async function onComposerDrop(ev: DragEvent) {
+  if (!dataTransferHasFiles(ev.dataTransfer)) return;
+  ev.preventDefault();
+
+  composerDragDepth = 0;
+  composerDropActive.value = false;
+  closeAllComposerPopovers();
+
+  const files = Array.from(ev.dataTransfer?.files ?? []);
+  for (const f of files) {
+    const kind: "image" | "file" = f.type?.startsWith("image/") ? "image" : "file";
+    addAttachment(f, kind);
+  }
+
+  try {
+    ev.dataTransfer?.clearData();
+  } catch {
+    // ignore
+  }
+
+  await nextTick();
+  textInput.value?.focus();
 }
 const scroller = ref<HTMLDivElement | null>(null);
 const scrollerLeft = ref<HTMLDivElement | null>(null);
@@ -1645,6 +1756,10 @@ function stopSpeechRecognition() {
   recognition = null;
 }
 
+function sleep(ms: number) {
+  return new Promise<void>((resolve) => window.setTimeout(resolve, ms));
+}
+
 function getListeningText() {
   const v = [listeningTextFinal.value.trim(), listeningTextInterim.value.trim()].filter(Boolean).join(" ").trim();
   return v;
@@ -1665,7 +1780,6 @@ async function stopListeningAndOpenJarvis() {
   if (!isListening.value) return;
   isListening.value = false;
 
-  stopSpeechRecognition();
   stopMicMeter();
 
   try {
@@ -1684,9 +1798,19 @@ async function stopListeningAndOpenJarvis() {
   analyser = null;
 
   const rid = store.activeRoomId;
-  const transcript = getListeningText().trim();
+
+  // SpeechRecognition은 stop() 직후 마지막 결과가 늦게 들어오는 경우가 있어
+  // 짧게 flush 시간을 주고 최종 transcript를 확정한다.
+  const before = getListeningText().trim();
+  stopSpeechRecognition();
+  await sleep(250);
+  const after = getListeningText().trim();
+  const transcript = (after.length >= before.length ? after : before).trim();
+
   listeningTextFinal.value = "";
   listeningTextInterim.value = "";
+
+  // 1) 음성 인식 결과를 컨텍스트로 저장 (선택 메시지 목록)
   if (rid && transcript) {
     addJarvisContextToRoom(rid, {
       content: transcript,
@@ -1697,8 +1821,8 @@ async function stopListeningAndOpenJarvis() {
     });
   }
 
-  // 음성 내용은 선택 메시지로 저장하고, 사용자는 별도 질문/요청을 입력
-  await openJarvisPopoverWithPrompt("");
+  // 2) 음성 인식 결과를 "질문/요청" 입력칸에도 자동 채움
+  await openJarvisPopoverWithPrompt(transcript);
 }
 
 async function toggleListening() {
@@ -2313,6 +2437,33 @@ watch(
   touch-action: pan-y;
 }
 
+.composer-drop-overlay {
+  pointer-events: none;
+  border: 1px dashed rgba(0, 105, 77, 0.45);
+  background: rgba(0, 105, 77, 0.08);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.composer-drop-card {
+  padding: 10px 12px;
+  border-radius: 10px;
+  border: 1px solid rgba(0, 105, 77, 0.25);
+  background: rgba(255, 255, 255, 0.92);
+  backdrop-filter: blur(6px);
+  text-align: center;
+}
+.composer-drop-title {
+  font-size: 13px;
+  font-weight: 600;
+  color: #262626;
+}
+.composer-drop-sub {
+  margin-top: 2px;
+  font-size: 11px;
+  color: var(--text-subtle);
+}
+
 .jarvis-context-preview {
   display: -webkit-box;
   line-clamp: 2;
@@ -2321,5 +2472,16 @@ watch(
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: pre-line;
+}
+
+.jarvis-context-list {
+  /* 2개까지만 보이고, 그 이상은 스크롤 */
+  max-height: min(168px, 32vh);
+  overflow-y: auto;
+  padding: 8px;
+  padding-right: 6px; /* 스크롤바 공간 확보 */
+  border-radius: 10px;
+  /* 보더 대신 배경 톤으로 영역 구분 (라이트/다크 자동 대응) */
+  background: var(--bg-hover);
 }
 </style>

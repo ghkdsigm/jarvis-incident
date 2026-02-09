@@ -73,6 +73,17 @@ function createWindow() {
     }
   });
 
+  // Ctrl + 마우스휠 / 트랙패드 핀치 줌(Visual Zoom)을 허용합니다.
+  // 일부 환경/설정에서 visual zoom 제한이 0..0/1..1로 묶여 있으면 확대/축소가 동작하지 않습니다.
+  // (zoom level: 0=100%, -1≈80%, 1≈125%)
+  try {
+    const p = mainWindow.webContents.setVisualZoomLevelLimits(-8, 9);
+    // Electron 버전에 따라 Promise를 반환할 수 있어 안전 처리
+    if (p && typeof p.catch === "function") p.catch(() => {});
+  } catch {
+    // ignore
+  }
+
   // Dev에서는 Vite dev server를 로드합니다.
   // `VITE_DEV_SERVER_URL`이 없을 때를 대비해 기본 포트를 사용합니다.
   if (!app.isPackaged) {

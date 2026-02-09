@@ -123,3 +123,33 @@ docker compose up -d
 - 사내 SSO(OIDC/SAML)는 `apps/server/src/plugins/auth.ts`의 JWT 발급부를 교체하는 방식으로 붙이는 것을 전제로 합니다.
 - 항상 듣기 마이크는 정책 이슈가 크므로 **Push-to-talk**를 권장합니다.
 - AI 호출은 트리거 기반으로 제한하고, 레이트리밋/감사 로그를 유지하는 것을 권장합니다.
+
+## Windows 빠른 실행 (도커로 백엔드 + 데스크톱 로컬)
+`infra/docker-compose.yml`로 **postgres/redis/server/worker**를 한 번에 띄우고, 데스크톱(Electron)은 로컬에서 실행합니다.
+
+### 1) 백엔드(도커) 실행
+
+PowerShell:
+
+```powershell
+cd infra
+docker compose up -d
+```
+
+
+### 2) (최초 1회) DB 마이그레이션
+도커 서버는 시작 시 마이그레이션을 자동으로 수행하지 않으므로, 처음 한 번만 실행합니다.
+
+```powershell
+cd infra
+docker compose exec server npx prisma migrate deploy --schema apps/server/prisma/schema.prisma
+```
+
+### 3) 데스크톱 앱 실행
+기본값 기준 서버는 `http://localhost:8080`, WebSocket은 `ws://localhost:8080/ws`를 사용합니다.
+(`apps/desktop/.env`에서 `VITE_API_BASE`, `VITE_WS_BASE`로 변경 가능)
+
+```powershell
+cd ..\apps\desktop
+npm run dev
+```

@@ -84,7 +84,7 @@
         @contextmenu.prevent="openRoomContextMenu($event, r)"
       >
         <div class="flex items-center justify-between gap-2">
-          <div class="text-sm font-medium truncate">{{ r.title }}</div>
+          <div class="text-sm font-medium truncate" :class="theme === 'dark' ? 'text-white' : 'text-black'">{{ r.title }}</div>
           <div class="shrink-0 relative" @mouseenter="openMemberPopover(r.id, $event)" @mouseleave="scheduleCloseMemberPopover">
             <div
               class="text-[11px] px-2 py-0.5 rounded-full border t-chip select-none"
@@ -204,9 +204,13 @@
 <script setup lang="ts">
 import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from "vue";
 import { useSessionStore } from "../stores/session";
+import { getActiveTheme, type ThemeMode } from "../theme";
 import CommonModal from "./ui/CommonModal.vue";
 
 const store = useSessionStore();
+
+const theme = ref<ThemeMode>("dark");
+let themeObserver: MutationObserver | null = null;
 
 const createRoomOpen = ref(false);
 const createRoomTitle = ref("");
@@ -443,9 +447,16 @@ function onKeydown(e: KeyboardEvent) {
 
 onMounted(() => {
   window.addEventListener("keydown", onKeydown);
+  theme.value = getActiveTheme();
+  themeObserver = new MutationObserver(() => {
+    theme.value = getActiveTheme();
+  });
+  themeObserver.observe(document.documentElement, { attributes: true, attributeFilter: ["data-theme"] });
 });
 onBeforeUnmount(() => {
   window.removeEventListener("keydown", onKeydown);
+  themeObserver?.disconnect();
+  themeObserver = null;
 });
 
 function closeCreateRoom() {

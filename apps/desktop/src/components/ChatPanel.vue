@@ -3,7 +3,7 @@
     <div class="border-b t-border" :class="isMiniMode ? 'p-2' : 'p-3'">
       <div class="flex items-start justify-between gap-2">
         <div class="min-w-0">
-          <div class="text-sm font-semibold truncate">{{ store.activeRoom?.title ?? "No room" }}</div>
+          <div class="text-sm font-semibold truncate" :class="theme === 'dark' ? 'text-white' : 'text-black'">{{ store.activeRoom?.title ?? "No room" }}</div>
           <div v-if="!isMiniMode" class="text-xs t-text-subtle font-mono truncate">{{ store.activeRoomId }}</div>
         </div>
         <div v-if="store.activeRoomId && !isMiniMode" class="flex items-center gap-2 shrink-0">
@@ -257,7 +257,7 @@
                     <button class="px-2 py-1 text-xs rounded t-btn-secondary" @click="cancelEdit">취소</button>
                     <button
                       class="px-2 py-1 text-xs rounded t-btn-primary disabled:opacity-50"
-                      :disabled="!editingText.trim().length"
+                      :disabled="!editingText.trim().length && !editingHasAttachments"
                       @click="submitEdit(m)"
                     >
                       저장
@@ -265,14 +265,58 @@
                   </div>
                 </template>
                 <template v-else>
-                  <div :class="isDeleted(m) ? 'italic t-text-muted' : ''">
-                    {{ isDeleted(m) ? "(삭제된 메시지)" : m.content }}
-                  </div>
+                  <template v-if="isDeleted(m)">
+                    <div class="italic t-text-muted">(삭제된 메시지)</div>
+                  </template>
+                  <template v-else>
+                    <div v-if="parsedFor(m).text">{{ parsedFor(m).text }}</div>
+
+                    <div v-if="parsedFor(m).attachments.length" class="mt-2 space-y-2">
+                      <div
+                        v-for="(a, idx) in parsedFor(m).attachments"
+                        :key="idx"
+                        class="msg-attach rounded-lg border t-border bg-white/60 p-2"
+                      >
+                        <template v-if="a.kind === 'image'">
+                          <a
+                            v-if="a.dataUrl"
+                            :href="a.dataUrl"
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            class="block"
+                            :title="a.name"
+                          >
+                            <img :src="a.dataUrl" :alt="a.name" class="msg-attach-image rounded-md border t-border object-cover" />
+                          </a>
+                          <div v-else class="text-xs t-text-subtle">이미지(미리보기 불가): {{ a.name }}</div>
+                          <div class="mt-1 text-[11px] t-text-muted truncate">{{ a.name }} · {{ formatBytes(a.size) }}</div>
+                        </template>
+                        <template v-else>
+                          <div class="flex items-center gap-2 min-w-0">
+                            <span class="text-sm leading-none">📎</span>
+                            <div class="min-w-0 flex-1">
+                              <div class="text-xs t-text-muted truncate">{{ a.name }}</div>
+                              <div class="text-[11px] t-text-subtle">{{ formatBytes(a.size) }}</div>
+                            </div>
+                            <a
+                              v-if="a.dataUrl"
+                              :href="a.dataUrl"
+                              :download="a.name"
+                              class="px-2 py-1 text-[11px] rounded t-btn-secondary"
+                            >
+                              다운로드
+                            </a>
+                            <span v-else class="text-[11px] t-text-subtle">전송 누락</span>
+                          </div>
+                        </template>
+                      </div>
+                    </div>
 
                   <div v-if="canEditOrDelete(m)" class="mt-2 hidden group-hover:flex items-center justify-end gap-2">
                     <button class="px-2 py-1 text-xs rounded t-btn-secondary" @click="startEdit(m)">수정</button>
                     <button class="px-2 py-1 text-xs rounded t-btn-danger" @click="confirmDelete(m)">삭제</button>
                   </div>
+                  </template>
                 </template>
               </div>
             </div>
@@ -362,7 +406,7 @@
                         <button class="px-2 py-1 text-xs rounded t-btn-secondary" @click="cancelEdit">취소</button>
                         <button
                           class="px-2 py-1 text-xs rounded t-btn-primary disabled:opacity-50"
-                          :disabled="!editingText.trim().length"
+                          :disabled="!editingText.trim().length && !editingHasAttachments"
                           @click="submitEdit(m)"
                         >
                           저장
@@ -370,9 +414,56 @@
                       </div>
                     </template>
                     <template v-else>
-                      <div :class="isDeleted(m) ? 'italic t-text-muted' : ''">
-                        {{ isDeleted(m) ? "(삭제된 메시지)" : m.content }}
-                      </div>
+                      <template v-if="isDeleted(m)">
+                        <div class="italic t-text-muted">(삭제된 메시지)</div>
+                      </template>
+                      <template v-else>
+                        <div v-if="parsedFor(m).text">{{ parsedFor(m).text }}</div>
+                        <div v-if="parsedFor(m).attachments.length" class="mt-2 space-y-2">
+                          <div
+                            v-for="(a, idx) in parsedFor(m).attachments"
+                            :key="idx"
+                            class="msg-attach rounded-lg border t-border bg-white/60 p-2"
+                          >
+                            <template v-if="a.kind === 'image'">
+                              <a
+                                v-if="a.dataUrl"
+                                :href="a.dataUrl"
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                class="block"
+                                :title="a.name"
+                              >
+                                <img
+                                  :src="a.dataUrl"
+                                  :alt="a.name"
+                                  class="msg-attach-image rounded-md border t-border object-cover"
+                                />
+                              </a>
+                              <div v-else class="text-xs t-text-subtle">이미지(미리보기 불가): {{ a.name }}</div>
+                              <div class="mt-1 text-[11px] t-text-muted truncate">{{ a.name }} · {{ formatBytes(a.size) }}</div>
+                            </template>
+                            <template v-else>
+                              <div class="flex items-center gap-2 min-w-0">
+                                <span class="text-sm leading-none">📎</span>
+                                <div class="min-w-0 flex-1">
+                                  <div class="text-xs t-text-muted truncate">{{ a.name }}</div>
+                                  <div class="text-[11px] t-text-subtle">{{ formatBytes(a.size) }}</div>
+                                </div>
+                                <a
+                                  v-if="a.dataUrl"
+                                  :href="a.dataUrl"
+                                  :download="a.name"
+                                  class="px-2 py-1 text-[11px] rounded t-btn-secondary"
+                                >
+                                  다운로드
+                                </a>
+                                <span v-else class="text-[11px] t-text-subtle">전송 누락</span>
+                              </div>
+                            </template>
+                          </div>
+                        </div>
+                      </template>
                     </template>
                   </div>
                 </div>
@@ -406,6 +497,46 @@
                     </div>
                     <div v-if="!isDeleted(m) && shouldShowTranslatePendingHint(m)" class="text-xs t-text-subtle mt-1">
                       (번역 대기)
+                    </div>
+                    <div v-if="!isDeleted(m) && parsedFor(m).attachments.length" class="mt-2 space-y-2">
+                      <div
+                        v-for="(a, idx) in parsedFor(m).attachments"
+                        :key="idx"
+                        class="msg-attach rounded-lg border t-border bg-white/60 p-2"
+                      >
+                        <template v-if="a.kind === 'image'">
+                          <a
+                            v-if="a.dataUrl"
+                            :href="a.dataUrl"
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            class="block"
+                            :title="a.name"
+                          >
+                            <img :src="a.dataUrl" :alt="a.name" class="msg-attach-image rounded-md border t-border object-cover" />
+                          </a>
+                          <div v-else class="text-xs t-text-subtle">이미지(미리보기 불가): {{ a.name }}</div>
+                          <div class="mt-1 text-[11px] t-text-muted truncate">{{ a.name }} · {{ formatBytes(a.size) }}</div>
+                        </template>
+                        <template v-else>
+                          <div class="flex items-center gap-2 min-w-0">
+                            <span class="text-sm leading-none">📎</span>
+                            <div class="min-w-0 flex-1">
+                              <div class="text-xs t-text-muted truncate">{{ a.name }}</div>
+                              <div class="text-[11px] t-text-subtle">{{ formatBytes(a.size) }}</div>
+                            </div>
+                            <a
+                              v-if="a.dataUrl"
+                              :href="a.dataUrl"
+                              :download="a.name"
+                              class="px-2 py-1 text-[11px] rounded t-btn-secondary"
+                            >
+                              다운로드
+                            </a>
+                            <span v-else class="text-[11px] t-text-subtle">전송 누락</span>
+                          </div>
+                        </template>
+                      </div>
                     </div>
                   </div>
                 </div>
@@ -760,7 +891,17 @@
         </div>
       </div>
       <div class="flex gap-2">
-        <div class="relative flex-1 flex gap-2">
+        <div
+          class="relative flex-1 flex gap-2 composer-drop"
+          :class="composerDragActive ? 'composer-drop-active' : ''"
+          @dragenter.prevent="onComposerDragEnter"
+          @dragover.prevent="onComposerDragOver"
+          @dragleave.prevent="onComposerDragLeave"
+          @drop.prevent="onComposerDrop"
+        >
+          <div v-if="composerDragActive" class="composer-drop-overlay" aria-hidden="true">
+            <div class="composer-drop-overlay-inner">여기에 놓으면 자동 첨부됩니다</div>
+          </div>
           <input
             v-model="text"
             ref="textInput"
@@ -808,7 +949,7 @@
               <button type="button" class="attach-action" @click="openImagePicker">이미지</button>
               <button type="button" class="attach-action" @click="openFilePicker">파일</button>
             </div>
-            <div class="mt-2 text-[11px] t-text-subtle">현재는 파일명만 메시지로 첨부됩니다.</div>
+            <div class="mt-2 text-[11px] t-text-subtle">전송하면 채팅에 미리보기가 표시됩니다. (파일 크기 제한 있음)</div>
           </div>
 
           <div
@@ -1259,6 +1400,7 @@
 import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from "vue";
 import { useSessionStore } from "../stores/session";
 import { useWindowStore } from "../stores/window";
+import { getActiveTheme, type ThemeMode } from "../theme";
 import { isJarvisTrigger, stripJarvisPrefix } from "@jarvis/shared";
 import {
   createIdeaCard,
@@ -1275,6 +1417,8 @@ import CommonModal from "./ui/CommonModal.vue";
 const store = useSessionStore();
 const windowStore = useWindowStore();
 const isMiniMode = computed(() => windowStore.miniMode);
+const theme = ref<ThemeMode>("dark");
+let themeObserver: MutationObserver | null = null;
 const text = ref("");
 const textInput = ref<HTMLInputElement | null>(null);
 const emojiOpen = ref(false);
@@ -1287,6 +1431,126 @@ const imageInput = ref<HTMLInputElement | null>(null);
 const fileInput = ref<HTMLInputElement | null>(null);
 const LS_RECENT_EMOJIS = "jarvis.desktop.recentEmojis";
 const recentEmojis = ref<string[]>([]);
+const isSending = ref(false);
+
+// attachments are embedded into `content` string (server schema is string only)
+const ATTACH_BLOCK_START = "[[jarvis_attachments_v1]]";
+const ATTACH_BLOCK_END = "[[/jarvis_attachments_v1]]";
+type ChatAttachmentPayload = {
+  kind: "image" | "file";
+  name: string;
+  mime: string;
+  size: number;
+  dataUrl?: string;
+};
+type ParsedMessage = { text: string; attachments: ChatAttachmentPayload[]; block: string };
+const parsedCache = new Map<string, ParsedMessage>();
+
+function base64EncodeUtf8(s: string) {
+  try {
+    return btoa(unescape(encodeURIComponent(s)));
+  } catch {
+    return btoa(s);
+  }
+}
+function base64DecodeUtf8(s: string) {
+  try {
+    return decodeURIComponent(escape(atob(s)));
+  } catch {
+    return atob(s);
+  }
+}
+
+function splitContent(raw: string): ParsedMessage {
+  const s = String(raw ?? "");
+  if (!s) return { text: "", attachments: [], block: "" };
+  const start = s.indexOf(ATTACH_BLOCK_START);
+  if (start < 0) return { text: s, attachments: [], block: "" };
+  const end = s.indexOf(ATTACH_BLOCK_END, start);
+  if (end < 0) return { text: s, attachments: [], block: "" };
+
+  const textPart = s.slice(0, start).trimEnd();
+  const block = s.slice(start, end + ATTACH_BLOCK_END.length).trim();
+
+  const lines = block
+    .split("\n")
+    .map((x) => x.trim())
+    .filter(Boolean);
+  const b64 = lines.length >= 2 ? lines[1] : "";
+  if (!b64) return { text: textPart, attachments: [], block };
+  try {
+    const json = base64DecodeUtf8(b64);
+    const parsed = JSON.parse(json);
+    const list = Array.isArray(parsed) ? parsed : [];
+    const attachments: ChatAttachmentPayload[] = list
+      .map((x: any) => ({
+        kind: x?.kind === "image" ? "image" : "file",
+        name: String(x?.name ?? ""),
+        mime: String(x?.mime ?? "application/octet-stream"),
+        size: Number(x?.size ?? 0) || 0,
+        dataUrl: typeof x?.dataUrl === "string" ? x.dataUrl : undefined
+      }))
+      .filter((x) => !!x.name);
+    return { text: textPart, attachments, block };
+  } catch {
+    return { text: textPart, attachments: [], block };
+  }
+}
+
+function parseMessageContent(raw: string): ParsedMessage {
+  const s = String(raw ?? "");
+  const cached = parsedCache.get(s);
+  if (cached) return cached;
+  const parsed = splitContent(s);
+  parsedCache.set(s, parsed);
+  return parsed;
+}
+
+function parsedFor(m: any) {
+  return parseMessageContent(String(m?.content ?? ""));
+}
+
+function plainTextFromContent(raw: string) {
+  return parseMessageContent(String(raw ?? "")).text;
+}
+
+function formatBytes(n: number) {
+  const v = Number(n) || 0;
+  if (v <= 0) return "0 B";
+  const units = ["B", "KB", "MB", "GB"];
+  let idx = 0;
+  let cur = v;
+  while (cur >= 1024 && idx < units.length - 1) {
+    cur /= 1024;
+    idx++;
+  }
+  const fixed = idx === 0 ? String(Math.round(cur)) : cur.toFixed(cur >= 10 ? 1 : 2);
+  return `${fixed} ${units[idx]}`;
+}
+
+function buildAttachmentBlock(list: ChatAttachmentPayload[]) {
+  if (!list.length) return "";
+  const json = JSON.stringify(list);
+  const b64 = base64EncodeUtf8(json);
+  return `${ATTACH_BLOCK_START}\n${b64}\n${ATTACH_BLOCK_END}`;
+}
+
+function composeContent(text: string, list: ChatAttachmentPayload[]) {
+  const t = String(text ?? "").trim();
+  const block = buildAttachmentBlock(list);
+  if (!t && block) return block;
+  if (t && !block) return t;
+  return `${t}\n\n${block}`;
+}
+
+function readAsDataUrl(file: File): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const r = new FileReader();
+    r.onerror = () => reject(new Error("FILE_READ_FAILED"));
+    r.onload = () => resolve(String(r.result ?? ""));
+    r.readAsDataURL(file);
+  });
+}
 
 // Insights (아이디어 카드 / 지식 그래프)
 type InsightsTab = "cards" | "graph";
@@ -1646,6 +1910,31 @@ function onPickFiles(ev: Event) {
   for (const f of files) addAttachment(f, "file");
   el.value = "";
 }
+
+// composer drag & drop
+const composerDragActive = ref(false);
+const composerDragDepth = ref(0);
+function onComposerDragEnter() {
+  composerDragDepth.value++;
+  composerDragActive.value = true;
+}
+function onComposerDragOver() {
+  composerDragActive.value = true;
+}
+function onComposerDragLeave() {
+  composerDragDepth.value = Math.max(0, composerDragDepth.value - 1);
+  if (composerDragDepth.value === 0) composerDragActive.value = false;
+}
+function onComposerDrop(ev: DragEvent) {
+  composerDragDepth.value = 0;
+  composerDragActive.value = false;
+  const dt = ev.dataTransfer;
+  const files = Array.from(dt?.files ?? []);
+  for (const f of files) {
+    const kind: "image" | "file" = String(f.type || "").startsWith("image/") ? "image" : "file";
+    addAttachment(f, kind);
+  }
+}
 const scroller = ref<HTMLDivElement | null>(null);
 const scrollerLeft = ref<HTMLDivElement | null>(null);
 const scrollerRight = ref<HTMLDivElement | null>(null);
@@ -1783,7 +2072,7 @@ async function translateOneMessage(m: any, runId: number) {
   if (!token) return;
 
   const id = String(m?.id ?? "");
-  const content = String(m?.content ?? "").trim();
+  const content = plainTextFromContent(String(m?.content ?? "")).trim();
   if (!id || !content) return;
   if (isDeleted(m)) return;
   const t = translateTargetLang.value;
@@ -2295,12 +2584,19 @@ onMounted(() => {
   loadJarvisContextsByRoom();
   document.addEventListener("pointerdown", onDocPointerDown);
   document.addEventListener("keydown", onDocKeyDown);
+  theme.value = getActiveTheme();
+  themeObserver = new MutationObserver(() => {
+    theme.value = getActiveTheme();
+  });
+  themeObserver.observe(document.documentElement, { attributes: true, attributeFilter: ["data-theme"] });
 });
 
 onBeforeUnmount(() => {
   document.removeEventListener("pointerdown", onDocPointerDown);
   document.removeEventListener("keydown", onDocKeyDown);
   clearAttachments();
+  themeObserver?.disconnect();
+  themeObserver = null;
 });
 
 type Colleague = {
@@ -2357,6 +2653,8 @@ const filteredColleagues = computed(() => {
 
 const editingId = ref<string>("");
 const editingText = ref<string>("");
+const editingAttachmentBlock = ref<string>("");
+const editingHasAttachments = computed(() => !!String(editingAttachmentBlock.value ?? "").trim());
 const messageMenuOpenId = ref<string>("");
 const deleteConfirmOpen = ref(false);
 const deleteTarget = ref<any | null>(null);
@@ -2420,17 +2718,22 @@ function canEditOrDelete(m: any) {
 function startEdit(m: any) {
   if (!canEditOrDelete(m)) return;
   editingId.value = m.id;
-  editingText.value = m.content ?? "";
+  const parsed = splitContent(String(m?.content ?? ""));
+  editingText.value = parsed.text ?? "";
+  editingAttachmentBlock.value = parsed.block ?? "";
 }
 function cancelEdit() {
   editingId.value = "";
   editingText.value = "";
+  editingAttachmentBlock.value = "";
 }
 function submitEdit(m: any) {
   if (!store.activeRoomId) return;
-  const v = editingText.value.trim();
-  if (!v) return;
-  store.editMessage(store.activeRoomId, m.id, v);
+  const v = String(editingText.value ?? "").trim();
+  const block = String(editingAttachmentBlock.value ?? "").trim();
+  if (!v && !block) return;
+  const next = block ? (v ? `${v}\n\n${block}` : block) : v;
+  store.editMessage(store.activeRoomId, m.id, next);
   cancelEdit();
 }
 
@@ -2494,29 +2797,55 @@ function scrollToBottom() {
 
 async function send() {
   if (!store.activeRoomId) return;
+  if (isSending.value) return;
   const base = text.value.trim();
   if (!base && pendingAttachments.value.length === 0) return;
 
-  const lines: string[] = [];
-  if (base) lines.push(base);
-  if (pendingAttachments.value.length) {
-    lines.push(
-      ...pendingAttachments.value.map((a) => {
-        const icon = a.kind === "image" ? "🖼️" : "📎";
-        return `[첨부] ${icon} ${a.file.name}`;
-      })
-    );
-  }
+  isSending.value = true;
+  try {
+    const MAX_EMBED_BYTES_PER_FILE = 5 * 1024 * 1024;
+    const MAX_EMBED_BYTES_TOTAL = 12 * 1024 * 1024;
+    let total = 0;
 
-  const content = lines.join("\n");
-  store.sendMessage(store.activeRoomId, content);
-  if (isJarvisTrigger(base || content)) {
-    store.askJarvis(store.activeRoomId, stripJarvisPrefix(base || content));
+    const attachments: ChatAttachmentPayload[] = [];
+    for (const a of pendingAttachments.value) {
+      const f = a.file;
+      const mime = String(f.type || "application/octet-stream");
+      const payload: ChatAttachmentPayload = {
+        kind: a.kind,
+        name: f.name,
+        mime,
+        size: f.size
+      };
+
+      // prototype: embed as dataURL so all clients can preview/download
+      if (f.size <= MAX_EMBED_BYTES_PER_FILE && total + f.size <= MAX_EMBED_BYTES_TOTAL) {
+        try {
+          payload.dataUrl = await readAsDataUrl(f);
+          total += f.size;
+        } catch {
+          // keep metadata only
+        }
+      }
+      attachments.push(payload);
+    }
+
+    const content = composeContent(base, attachments);
+    store.sendMessage(store.activeRoomId, content);
+
+    // jarvis trigger: only by plain text (attachments are ignored)
+    const triggerText = base || plainTextFromContent(content);
+    if (isJarvisTrigger(triggerText)) {
+      store.askJarvis(store.activeRoomId, stripJarvisPrefix(triggerText));
+    }
+
+    text.value = "";
+    clearAttachments();
+    await nextTick();
+    scrollToBottom();
+  } finally {
+    isSending.value = false;
   }
-  text.value = "";
-  clearAttachments();
-  await nextTick();
-  scrollToBottom();
 }
 
 function askJarvisQuick() {
@@ -2568,7 +2897,7 @@ async function openJarvisPopoverFromMessage(m: any) {
   closeAttachMenu();
   jarvisPopoverOpen.value = true;
 
-  const content = String(m?.content ?? "").trim();
+  const content = plainTextFromContent(String(m?.content ?? "")).trim();
   const rid = store.activeRoomId;
   const ctx = content && content !== DELETED_PLACEHOLDER ? content : "";
   if (rid && ctx) {
@@ -2783,6 +3112,39 @@ watch(
 }
 .attach-remove:hover {
   background: var(--row-hover);
+}
+
+.composer-drop-active {
+  outline: 2px dashed rgba(0, 105, 77, 0.45);
+  outline-offset: 4px;
+  border-radius: 12px;
+}
+.composer-drop-overlay {
+  position: absolute;
+  inset: -6px;
+  border-radius: 12px;
+  background: rgba(0, 173, 80, 0.08);
+  border: 2px dashed rgba(0, 105, 77, 0.45);
+  pointer-events: none;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 5;
+}
+.composer-drop-overlay-inner {
+  font-size: 12px;
+  color: var(--text-muted);
+  background: rgba(255, 255, 255, 0.9);
+  padding: 6px 10px;
+  border-radius: 9999px;
+  border: 1px solid var(--border);
+}
+
+.msg-attach-image {
+  width: 100%;
+  max-height: 220px;
+  object-fit: cover;
+  display: block;
 }
 .emoji-grid {
   display: grid;

@@ -159,6 +159,41 @@ export async function fetchRoomGraph(
   return await res.json();
 }
 
+/** Brain Pulse 리포트: 채팅·아이디어 카드·지식 그래프 기반 1개 보고서 + AI 인텔리전스 제안 */
+export type PulseReportSections = {
+  people?: string;
+  chat?: string;
+  documents?: string;
+  tasks?: string;
+  ideas?: string;
+  problems?: string;
+  complaints?: string;
+  techIssues?: string;
+  decisions?: string;
+};
+export type PulseReportDto = {
+  summary: string;
+  sections: PulseReportSections;
+  aiSuggestions: string[];
+  generatedAt: string;
+};
+
+export async function generatePulseReport(
+  token: string,
+  roomId: string
+): Promise<PulseReportDto> {
+  const res = await fetch(`${API_BASE}/rooms/${roomId}/pulse-report`, {
+    method: "POST",
+    headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
+    body: JSON.stringify({})
+  });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error((err as any).error ?? `Pulse report failed: ${res.status}`);
+  }
+  return await res.json();
+}
+
 /** 지난 회의록 요약해서 현재 방에 가져오기 (선택한 이전 방의 최근 약 1주일 메시지를 요약해 봇 메시지로 등록) */
 export async function importMeetingSummary(
   token: string,

@@ -628,6 +628,38 @@
               </svg>
               <span>지식 그래프</span>
             </button>
+            <button
+              type="button"
+              title="채팅·아이디어 카드·지식 그래프를 AI가 분석해 하나의 보고서와 인텔리전스 제안으로 정리합니다."
+              class="px-2.5 py-1.5 text-xs rounded inline-flex items-center gap-1.5"
+              :class="insightsTab === 'pulse' ? 't-btn-primary' : 't-btn-secondary'"
+              @click="insightsTab = 'pulse'"
+            >
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" aria-hidden="true" class="shrink-0">
+                <path
+                  d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8l-6-6Z"
+                  stroke="currentColor"
+                  stroke-width="1.8"
+                  stroke-linecap="round"
+                  stroke-linejoin="round"
+                />
+                <path
+                  d="M14 2v6h6"
+                  stroke="currentColor"
+                  stroke-width="1.8"
+                  stroke-linecap="round"
+                  stroke-linejoin="round"
+                />
+                <path
+                  d="M16 13H8M16 17H8M10 9H8"
+                  stroke="currentColor"
+                  stroke-width="1.8"
+                  stroke-linecap="round"
+                  stroke-linejoin="round"
+                />
+              </svg>
+              <span>Brain Pulse 리포트</span>
+            </button>
             <div class="ml-auto flex items-center gap-2">
               <button
                 type="button"
@@ -675,8 +707,8 @@
 
           <div v-if="insightsTab === 'cards'">
             <div v-if="cardsError" class="mb-2 text-xs t-text-faint">에러: {{ cardsError }}</div>
-            <div v-if="cardsLoading" class="text-sm t-text-subtle">카드 로딩 중…</div>
-            <div v-else-if="!ideaCards.length" class="text-sm t-text-subtle">
+            <div v-if="cardsLoading" class="text-xs t-text-subtle">카드 로딩 중…</div>
+            <div v-else-if="!ideaCards.length" class="text-xs t-text-subtle">
               아직 저장된 카드가 없습니다. 메시지 옆의 북마크 아이콘으로 저장해보세요.
             </div>
             <div v-else class="columns-1 md:columns-2 xl:columns-3 gap-3 [column-fill:_balance]">
@@ -740,10 +772,10 @@
             </div>
           </div>
 
-          <div v-else>
+          <div v-else-if="insightsTab === 'graph'">
             <div v-if="graphError" class="mb-2 text-xs t-text-faint">에러: {{ graphError }}</div>
-            <div v-if="graphLoading" class="text-sm t-text-subtle">그래프 로딩 중…</div>
-            <div v-else-if="!graphData?.nodes?.length" class="text-sm t-text-subtle">
+            <div v-if="graphLoading" class="text-xs t-text-subtle">그래프 로딩 중…</div>
+            <div v-else-if="!graphData?.nodes?.length" class="text-xs t-text-subtle">
               아직 그래프를 만들 정보가 부족합니다. 카드(특히 AI 주간 카드)가 생기면 연결이 만들어집니다.
             </div>
             <svg
@@ -788,6 +820,88 @@
                 </g>
               </g>
             </svg>
+          </div>
+
+          <div v-else-if="insightsTab === 'pulse'" class="space-y-4">
+            <div v-if="pulseError" class="mb-2 text-xs t-text-faint">에러: {{ pulseError }}</div>
+            <div v-if="!pulseReport" class="rounded border t-border t-surface p-4 text-center">
+              <p class="text-xs t-text-subtle mb-3">
+                '{{ store.activeRoom?.title || "이 채팅방" }}' 채팅방의 아이디어 카드·지식 그래프·채팅을 AI가 분석해 사람, 채팅, 문서, 태스크, 아이디어, 문제 제기, 불만, 기술 이슈, 결정 사항으로 정리하고 인텔리전스 제안을 생성합니다.
+              </p>
+              <button
+                type="button"
+                class="px-4 py-2 text-sm rounded t-btn-primary inline-flex items-center gap-2"
+                :disabled="pulseLoading"
+                @click="runGeneratePulseReport"
+              >
+                <svg
+                  v-if="pulseLoading"
+                  class="animate-spin shrink-0"
+                  width="18"
+                  height="18"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  aria-hidden="true"
+                >
+                  <circle
+                    cx="12"
+                    cy="12"
+                    r="10"
+                    stroke="currentColor"
+                    stroke-width="2"
+                    stroke-opacity="0.25"
+                  />
+                  <path
+                    d="M12 2a10 10 0 0 1 10 10"
+                    stroke="currentColor"
+                    stroke-width="2"
+                    stroke-linecap="round"
+                  />
+                </svg>
+                <span>{{ pulseLoading ? "리포트 생성 중…" : "Pulse 리포트 생성하기" }}</span>
+              </button>
+            </div>
+            <div v-else class="rounded border t-border t-surface overflow-hidden">
+              <div class="px-4 py-3 border-b t-border bg-[#FBFBFB]">
+                <h3 class="text-base font-bold t-text">Brain Pulse 리포트</h3>
+                <p class="text-xs t-text-subtle mt-0.5">{{ formatPulseGeneratedAt(pulseReport.generatedAt) }}</p>
+              </div>
+              <div class="p-4 space-y-4">
+                <section>
+                  <h4 class="text-sm font-semibold t-text mb-1">요약</h4>
+                  <p class="text-sm t-text-subtle whitespace-pre-wrap">{{ pulseReport.summary }}</p>
+                </section>
+                <template v-for="(label, key) in pulseSectionLabels" :key="key">
+                  <section v-if="pulseReport.sections[key]" class="border-t t-border pt-3">
+                    <h4 class="text-sm font-semibold t-text mb-1">{{ label }}</h4>
+                    <p class="text-sm t-text-subtle whitespace-pre-wrap">{{ pulseReport.sections[key] }}</p>
+                  </section>
+                </template>
+                <section v-if="pulseReport.aiSuggestions?.length" class="border-t t-border pt-3">
+                  <h4 class="text-sm font-semibold text-[#00694D] mb-2">AI 인텔리전스 제안</h4>
+                  <ul class="space-y-1.5">
+                    <li
+                      v-for="(s, i) in pulseReport.aiSuggestions"
+                      :key="i"
+                      class="text-sm t-text-subtle flex gap-2"
+                    >
+                      <span class="text-[#00AD50] font-medium shrink-0">{{ i + 1 }}.</span>
+                      <span>{{ s }}</span>
+                    </li>
+                  </ul>
+                </section>
+              </div>
+              <div class="px-4 py-2 border-t t-border bg-[#FBFBFB] flex justify-end">
+                <button
+                  type="button"
+                  class="px-3 py-1.5 text-xs rounded t-btn-secondary"
+                  @click="runGeneratePulseReport"
+                  :disabled="pulseLoading"
+                >
+                  {{ pulseLoading ? "생성 중…" : "다시 생성" }}
+                </button>
+              </div>
+            </div>
           </div>
         </div>
       </template>
@@ -1538,8 +1652,10 @@ import {
   deleteIdeaCard,
   fetchIdeaCards,
   fetchRoomGraph,
+  generatePulseReport,
   generateWeeklyIdeaCards,
   type IdeaCardDto,
+  type PulseReportDto,
   fetchUsers,
   importMeetingSummary,
   translateText
@@ -1684,8 +1800,8 @@ function readAsDataUrl(file: File): Promise<string> {
   });
 }
 
-// Insights (아이디어 카드 / 지식 그래프)
-type InsightsTab = "cards" | "graph";
+// Insights (아이디어 카드 / 지식 그래프 / Brain Pulse 리포트)
+type InsightsTab = "cards" | "graph" | "pulse";
 const activePane = ref<"chat" | "insights">("chat");
 const insightsTab = ref<InsightsTab>("cards");
 const ideaCards = ref<IdeaCardDto[]>([]);
@@ -1695,6 +1811,21 @@ const graphLoading = ref(false);
 const graphError = ref<string>("");
 const graphData = ref<{ roomId: string; weekStart: string | null; nodes: any[]; edges: any[] } | null>(null);
 const graphSvgSize = 560;
+
+const pulseReport = ref<PulseReportDto | null>(null);
+const pulseLoading = ref(false);
+const pulseError = ref<string>("");
+const pulseSectionLabels: Record<keyof PulseReportDto["sections"], string> = {
+  people: "사람",
+  chat: "채팅",
+  documents: "문서",
+  tasks: "태스크",
+  ideas: "아이디어",
+  problems: "문제 제기",
+  complaints: "불만",
+  techIssues: "기술 이슈",
+  decisions: "결정 사항"
+};
 
 const graphPosById = computed<Record<string, { x: number; y: number }>>(() => {
   const g = graphData.value;
@@ -1820,6 +1951,35 @@ async function runWeeklyAiUpdate() {
   }
 }
 
+async function runGeneratePulseReport() {
+  if (!store.token || !store.activeRoomId) return;
+  pulseLoading.value = true;
+  pulseError.value = "";
+  try {
+    pulseReport.value = await generatePulseReport(store.token, store.activeRoomId);
+  } catch (e: any) {
+    pulseError.value = e?.message ?? "리포트 생성 실패";
+    pulseReport.value = null;
+  } finally {
+    pulseLoading.value = false;
+  }
+}
+
+function formatPulseGeneratedAt(iso: string) {
+  try {
+    const d = new Date(iso);
+    return d.toLocaleString("ko-KR", {
+      year: "numeric",
+      month: "2-digit",
+      day: "2-digit",
+      hour: "2-digit",
+      minute: "2-digit"
+    });
+  } catch {
+    return iso;
+  }
+}
+
 watch(
   () => insightsTab.value,
   (t) => {
@@ -1830,6 +1990,8 @@ watch(
 watch(
   () => store.activeRoomId,
   () => {
+    pulseReport.value = null;
+    pulseError.value = "";
     if (activePane.value === "insights") {
       insightsWeekStartIso.value = weekStartIsoUtcFor();
       refreshInsights();

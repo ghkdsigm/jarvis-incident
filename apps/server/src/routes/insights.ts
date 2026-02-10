@@ -341,5 +341,129 @@ export async function insightsRoutes(app: FastifyInstance) {
 
     return reply.send({ ok: true, created: createdCount });
   });
+
+  // Brain Pulse 리포트: 카드+그래프+채팅 기반 1개 보고서 + AI 인텔리전스 제안
+  type PulseReportSections = {
+    people?: string;
+    chat?: string;
+    documents?: string;
+    tasks?: string;
+    ideas?: string;
+    problems?: string;
+    complaints?: string;
+    techIssues?: string;
+    decisions?: string;
+  };
+  type PulseReportPayload = {
+    summary: string;
+    sections: PulseReportSections;
+    aiSuggestions: string[];
+    generatedAt: string;
+  };
+
+  app.post("/rooms/:roomId/pulse-report", { preHandler: app.authenticate }, async (req: any, reply) => {
+    const roomId = req.params.roomId as string;
+    const userId = req.user.sub as string;
+
+    const membership = await ensureMembership(userId, roomId);
+    if (!membership) return reply.code(403).send({ error: "FORBIDDEN" });
+
+    if (!env.openaiApiKey) return reply.code(501).send({ error: "OPENAI_NOT_CONFIGURED" });
+
+    const [room, messages, cards] = await Promise.all([
+      prisma.room.findUnique({ where: { id: roomId } }),
+      prisma.message.findMany({
+        where: { roomId, NOT: { content: "(삭제된 메시지)" } },
+        orderBy: { createdAt: "asc" },
+        take: 500
+      }),
+      prisma.ideaCard.findMany({
+        where: { roomId },
+        orderBy: { createdAt: "desc" },
+        take: 120
+      })
+    ]);
+
+    const transcript = messages
+      .map((m) => `[${m.createdAt.toISOString()}] ${m.senderType}${m.senderUserId ? `:${m.senderUserId}` : ""}: ${m.content}`)
+      .join("\n")
+      .slice(0, 100_000);
+
+    const cardsSummary = cards
+      .map((c) => {
+        const content = (c.content ?? {}) as any;
+        const g = (c.graph ?? null) as any;
+        const parts = [`제목: ${c.title}`];
+        if (content.problem) parts.push(`Problem: ${content.problem}`);
+        if (content.proposal) parts.push(`Proposal: ${content.proposal}`);
+        if (content.impact) parts.push(`Impact: ${content.impact}`);
+        if (Array.isArray(g?.issues) && g.issues.length) parts.push(`Issues: ${g.issues.join(", ")}`);
+        if (Array.isArray(g?.systems) && g.systems.length) parts.push(`Systems: ${g.systems.join(", ")}`);
+        if (Array.isArray(g?.decisions) && g.decisions.length) parts.push(`Decisions: ${g.decisions.join(", ")}`);
+        return parts.join("\n");
+      })
+      .join("\n\n---\n\n")
+      .slice(0, 30_000);
+
+    const system =
+      "You are a meeting intelligence assistant. Given chat transcript and idea cards (with knowledge-graph tags), produce ONE consolidated report in Korean.\n" +
+      "Return ONLY valid JSON (no markdown, no code block) with this exact shape:\n" +
+      '{"summary":"한 줄 요약","sections":{"people":"참여자/역할 요약","chat":"채팅 흐름 요약","documents":"언급된 문서","tasks":"태스크/할일","ideas":"아이디어","problems":"문제 제기","complaints":"불만/우려","techIssues":"기술 이슈","decisions":"결정 사항"},"aiSuggestions":["제안1","제안2",...]}\n' +
+      "Omit section keys when no content. aiSuggestions: 3~7 actionable recommendations based on the report. Write all text in Korean.";
+
+    const userContent =
+      `Room: ${room?.title ?? roomId}\n\n` +
+      "=== 채팅 기록 (일부) ===\n" +
+      (transcript || "(없음)") +
+      "\n\n=== 아이디어 카드 및 지식 그래프 요약 ===\n" +
+      (cardsSummary || "(없음)");
+
+    const upstream = await fetch(`${env.openaiBaseUrl}/chat/completions`, {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${env.openaiApiKey}`,
+        "Content-Type": "application/json"
+      },
+      body: JSON.stringify({
+        model: env.openaiIdeaModel,
+        temperature: 0.3,
+        messages: [
+          { role: "system", content: system },
+          { role: "user", content: userContent }
+        ]
+      })
+    });
+
+    if (!upstream.ok) {
+      const details = await upstream.text().catch(() => "");
+      return reply.code(502).send({
+        error: "PULSE_UPSTREAM_ERROR",
+        status: upstream.status,
+        details: details.slice(0, 2000)
+      });
+    }
+
+    const data: any = await upstream.json();
+    const raw = String(data?.choices?.[0]?.message?.content ?? "").trim();
+    const cleaned = raw.replace(/^```\w*\n?|\n?```$/g, "").trim();
+    let parsed: any;
+    try {
+      parsed = JSON.parse(cleaned);
+    } catch {
+      return reply.code(502).send({ error: "PULSE_BAD_JSON", sample: raw.slice(0, 400) });
+    }
+
+    const summary = String(parsed?.summary ?? "").trim() || "요약 없음";
+    const sections: PulseReportSections = (parsed?.sections && typeof parsed.sections === "object") ? parsed.sections : {};
+    const aiSuggestions = Array.isArray(parsed?.aiSuggestions) ? parsed.aiSuggestions.map((s: any) => String(s)) : [];
+
+    const payload: PulseReportPayload = {
+      summary,
+      sections,
+      aiSuggestions,
+      generatedAt: new Date().toISOString()
+    };
+    return reply.send(payload);
+  });
 }
 

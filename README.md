@@ -123,3 +123,20 @@ docker compose up -d
 - 사내 SSO(OIDC/SAML)는 `apps/server/src/plugins/auth.ts`의 JWT 발급부를 교체하는 방식으로 붙이는 것을 전제로 합니다.
 - 항상 듣기 마이크는 정책 이슈가 크므로 **Push-to-talk**를 권장합니다.
 - AI 호출은 트리거 기반으로 제한하고, 레이트리밋/감사 로그를 유지하는 것을 권장합니다.
+
+## DBeaver에서 로컬 Postgres(DB) 보기
+`infra/docker-compose.yml` 기준으로 Postgres는 로컬에 **5432 포트로 노출**됩니다. (기본 계정/DB는 `jarvis/jarvis`, `jarvis_chat`)
+
+### 연결 정보(기본값)
+- **Host**: `localhost`
+- **Port**: `5432`
+- **Database**: `jarvis_chat`
+- **Username**: `jarvis`
+- **Password**: `jarvis`
+- **Schema(선택)**: `public`
+- **SSL**: Disable (로컬 기본)
+
+### JDBC URL(필요 시)
+- `jdbc:postgresql://localhost:5432/jarvis_chat`
+
+> 참고: 값이 다르면 `infra/.env`의 `POSTGRES_DB` / `POSTGRES_USER` / `POSTGRES_PASSWORD`를 우선 확인하세요.

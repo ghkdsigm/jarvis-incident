@@ -64,17 +64,28 @@ export async function registerWs(app: FastifyInstance) {
   });
 
   app.get("/ws", { websocket: true }, async (connection, req: any) => {
+    // @fastify/websocket has had minor API shape differences across versions.
+    // Some versions pass a SocketStream-like object ({ socket }), others pass the WebSocket directly.
+    const socket: any = (connection as any)?.socket ?? connection;
+    if (!socket || typeof socket.on !== "function" || typeof socket.send !== "function") {
+      app.log.error(
+        { connectionType: typeof connection, keys: connection ? Object.keys(connection as any) : null },
+        "Invalid websocket connection object"
+      );
+      return;
+    }
+
     const token = (req.query?.token as string | undefined) ?? "";
     let user: any;
     try {
       user = app.jwt.verify(token);
     } catch {
-      connection.socket.send(JSON.stringify({ type: "error", payload: { message: "INVALID_TOKEN" } }));
-      connection.socket.close();
+      socket.send(JSON.stringify({ type: "error", payload: { message: "INVALID_TOKEN" } }));
+      socket.close();
       return;
     }
 
-    const conn: WsConn = { socket: connection.socket, userId: user.sub, rooms: new Set() };
+    const conn: WsConn = { socket, userId: user.sub, rooms: new Set() };
     conns.add(conn);
 
     // Presence: mark online when first socket connects for this user
@@ -92,18 +103,18 @@ export async function registerWs(app: FastifyInstance) {
         });
     }
 
-    connection.socket.on("message", async (raw: any) => {
+    socket.on("message", async (raw: any) => {
       let parsed: any;
       try {
         parsed = JSON.parse(raw.toString());
       } catch {
-        connection.socket.send(JSON.stringify({ type: "error", payload: { message: "BAD_JSON" } }));
+        socket.send(JSON.stringify({ type: "error", payload: { message: "BAD_JSON" } }));
         return;
       }
 
       const result = WsClientMessageSchema.safeParse(parsed);
       if (!result.success) {
-        connection.socket.send(JSON.stringify({ type: "error", payload: { message: "BAD_MESSAGE" } }));
+        socket.send(JSON.stringify({ type: "error", payload: { message: "BAD_MESSAGE" } }));
         return;
       }
 
@@ -113,11 +124,11 @@ export async function registerWs(app: FastifyInstance) {
         const roomId = msg.roomId;
         const ok = await ensureJoined(conn, roomId);
         if (!ok) {
-          connection.socket.send(JSON.stringify({ type: "error", payload: { message: "FORBIDDEN" } }));
+          socket.send(JSON.stringify({ type: "error", payload: { message: "FORBIDDEN" } }));
           return;
         }
 
-        connection.socket.send(JSON.stringify({ type: "room.joined", payload: { roomId } }));
+        socket.send(JSON.stringify({ type: "room.joined", payload: { roomId } }));
         return;
       }
 
@@ -127,7 +138,7 @@ export async function registerWs(app: FastifyInstance) {
           where: { roomId_userId: { roomId, userId: conn.userId } }
         });
         if (!membership) {
-          connection.socket.send(JSON.stringify({ type: "error", payload: { message: "FORBIDDEN" } }));
+          socket.send(JSON.stringify({ type: "error", payload: { message: "FORBIDDEN" } }));
           return;
         }
 
@@ -135,7 +146,7 @@ export async function registerWs(app: FastifyInstance) {
         if (membership.role === "owner") {
           const memberCount = await prisma.roomMember.count({ where: { roomId } });
           if (memberCount > 1) {
-            connection.socket.send(JSON.stringify({ type: "error", payload: { message: "OWNER_CANNOT_LEAVE" } }));
+            socket.send(JSON.stringify({ type: "error", payload: { message: "OWNER_CANNOT_LEAVE" } }));
             return;
           }
         }
@@ -155,14 +166,14 @@ export async function registerWs(app: FastifyInstance) {
           await prisma.room.delete({ where: { id: roomId } });
         }
 
-        connection.socket.send(JSON.stringify({ type: "room.left", payload: { roomId } }));
+        socket.send(JSON.stringify({ type: "room.left", payload: { roomId } }));
         return;
       }
 
       if (msg.type === "message.send") {
         const roomId = msg.roomId;
         const ok = await ensureJoined(conn, roomId);
-        if (!ok) return connection.socket.send(JSON.stringify({ type: "error", payload: { message: "FORBIDDEN" } }));
+        if (!ok) return socket.send(JSON.stringify({ type: "error", payload: { message: "FORBIDDEN" } }));
 
         const created = await prisma.message.create({
           data: {
@@ -195,20 +206,20 @@ export async function registerWs(app: FastifyInstance) {
       if (msg.type === "message.edit") {
         const roomId = msg.roomId;
         const ok = await ensureJoined(conn, roomId);
-        if (!ok) return connection.socket.send(JSON.stringify({ type: "error", payload: { message: "FORBIDDEN" } }));
+        if (!ok) return socket.send(JSON.stringify({ type: "error", payload: { message: "FORBIDDEN" } }));
 
         // Only author can edit their own user message.
         const existing = await prisma.message.findUnique({ where: { id: msg.messageId } });
         if (!existing || existing.roomId !== roomId) {
-          connection.socket.send(JSON.stringify({ type: "error", payload: { message: "NOT_FOUND" } }));
+          socket.send(JSON.stringify({ type: "error", payload: { message: "NOT_FOUND" } }));
           return;
         }
         if (existing.senderType !== "user" || existing.senderUserId !== conn.userId) {
-          connection.socket.send(JSON.stringify({ type: "error", payload: { message: "FORBIDDEN" } }));
+          socket.send(JSON.stringify({ type: "error", payload: { message: "FORBIDDEN" } }));
           return;
         }
         if (existing.content === DELETED_PLACEHOLDER) {
-          connection.socket.send(JSON.stringify({ type: "error", payload: { message: "ALREADY_DELETED" } }));
+          socket.send(JSON.stringify({ type: "error", payload: { message: "ALREADY_DELETED" } }));
           return;
         }
 
@@ -232,15 +243,15 @@ export async function registerWs(app: FastifyInstance) {
       if (msg.type === "message.delete") {
         const roomId = msg.roomId;
         const ok = await ensureJoined(conn, roomId);
-        if (!ok) return connection.socket.send(JSON.stringify({ type: "error", payload: { message: "FORBIDDEN" } }));
+        if (!ok) return socket.send(JSON.stringify({ type: "error", payload: { message: "FORBIDDEN" } }));
 
         const existing = await prisma.message.findUnique({ where: { id: msg.messageId } });
         if (!existing || existing.roomId !== roomId) {
-          connection.socket.send(JSON.stringify({ type: "error", payload: { message: "NOT_FOUND" } }));
+          socket.send(JSON.stringify({ type: "error", payload: { message: "NOT_FOUND" } }));
           return;
         }
         if (existing.senderType !== "user" || existing.senderUserId !== conn.userId) {
-          connection.socket.send(JSON.stringify({ type: "error", payload: { message: "FORBIDDEN" } }));
+          socket.send(JSON.stringify({ type: "error", payload: { message: "FORBIDDEN" } }));
           return;
         }
         if (existing.content === DELETED_PLACEHOLDER) {
@@ -260,7 +271,7 @@ export async function registerWs(app: FastifyInstance) {
       if (msg.type === "jarvis.request") {
         const roomId = msg.roomId;
         const ok = await ensureJoined(conn, roomId);
-        if (!ok) return connection.socket.send(JSON.stringify({ type: "error", payload: { message: "FORBIDDEN" } }));
+        if (!ok) return socket.send(JSON.stringify({ type: "error", payload: { message: "FORBIDDEN" } }));
         await aiQueue.add("jarvis", {
           roomId,
           messageId: msg.messageId ?? null,
@@ -276,11 +287,11 @@ export async function registerWs(app: FastifyInstance) {
           where: { roomId_userId: { roomId, userId: conn.userId } }
         });
         if (!membership) {
-          connection.socket.send(JSON.stringify({ type: "error", payload: { message: "FORBIDDEN" } }));
+          socket.send(JSON.stringify({ type: "error", payload: { message: "FORBIDDEN" } }));
           return;
         }
         if (membership.role !== "owner") {
-          connection.socket.send(JSON.stringify({ type: "error", payload: { message: "OWNER_ONLY" } }));
+          socket.send(JSON.stringify({ type: "error", payload: { message: "OWNER_ONLY" } }));
           return;
         }
         const room = await prisma.room.update({
@@ -301,11 +312,11 @@ export async function registerWs(app: FastifyInstance) {
           where: { roomId_userId: { roomId, userId: conn.userId } }
         });
         if (!membership) {
-          connection.socket.send(JSON.stringify({ type: "error", payload: { message: "FORBIDDEN" } }));
+          socket.send(JSON.stringify({ type: "error", payload: { message: "FORBIDDEN" } }));
           return;
         }
         if (membership.role !== "owner") {
-          connection.socket.send(JSON.stringify({ type: "error", payload: { message: "OWNER_ONLY" } }));
+          socket.send(JSON.stringify({ type: "error", payload: { message: "OWNER_ONLY" } }));
           return;
         }
 
@@ -321,7 +332,7 @@ export async function registerWs(app: FastifyInstance) {
       if (msg.type === "rtc.offer") {
         const roomId = msg.roomId;
         const ok = await ensureJoined(conn, roomId);
-        if (!ok) return connection.socket.send(JSON.stringify({ type: "error", payload: { message: "FORBIDDEN" } }));
+        if (!ok) return socket.send(JSON.stringify({ type: "error", payload: { message: "FORBIDDEN" } }));
         broadcast(roomId, { type: "rtc.offer", payload: { roomId, fromUserId: conn.userId, sdp: msg.sdp } });
         return;
       }
@@ -329,7 +340,7 @@ export async function registerWs(app: FastifyInstance) {
       if (msg.type === "rtc.answer") {
         const roomId = msg.roomId;
         const ok = await ensureJoined(conn, roomId);
-        if (!ok) return connection.socket.send(JSON.stringify({ type: "error", payload: { message: "FORBIDDEN" } }));
+        if (!ok) return socket.send(JSON.stringify({ type: "error", payload: { message: "FORBIDDEN" } }));
         broadcast(roomId, { type: "rtc.answer", payload: { roomId, fromUserId: conn.userId, sdp: msg.sdp } });
         return;
       }
@@ -337,7 +348,7 @@ export async function registerWs(app: FastifyInstance) {
       if (msg.type === "rtc.ice") {
         const roomId = msg.roomId;
         const ok = await ensureJoined(conn, roomId);
-        if (!ok) return connection.socket.send(JSON.stringify({ type: "error", payload: { message: "FORBIDDEN" } }));
+        if (!ok) return socket.send(JSON.stringify({ type: "error", payload: { message: "FORBIDDEN" } }));
         broadcast(roomId, {
           type: "rtc.ice",
           payload: { roomId, fromUserId: conn.userId, candidate: msg.candidate }
@@ -348,13 +359,13 @@ export async function registerWs(app: FastifyInstance) {
       if (msg.type === "rtc.hangup") {
         const roomId = msg.roomId;
         const ok = await ensureJoined(conn, roomId);
-        if (!ok) return connection.socket.send(JSON.stringify({ type: "error", payload: { message: "FORBIDDEN" } }));
+        if (!ok) return socket.send(JSON.stringify({ type: "error", payload: { message: "FORBIDDEN" } }));
         broadcast(roomId, { type: "rtc.hangup", payload: { roomId, fromUserId: conn.userId } });
         return;
       }
     });
 
-    connection.socket.on("close", () => {
+    socket.on("close", () => {
       conns.delete(conn);
       for (const roomId of conn.rooms) {
         roomIndex.get(roomId)?.delete(conn);

@@ -41,7 +41,7 @@
 레포 **루트**에서:
 
 ```powershell
-cd d:\workspace_2\jarvis-incident
+cd <repo-root>\jarvis-incident
 npm install
 ```
 
@@ -49,7 +49,7 @@ npm install
 로컬에서 서버/워커/데스크톱은 직접 실행하고, **Postgres와 Redis만 Docker**로 띄우는 방식을 권장합니다.
 
 ```powershell
-cd d:\workspace_2\jarvis-incident\infra
+cd <repo-root>\jarvis-incident\infra
 copy .env.example .env
 docker compose up -d postgres redis
 ```
@@ -61,7 +61,7 @@ DB가 준비될 때까지 몇 초 기다린 뒤 다음 단계로 진행합니다
 
 ### 2.3 3단계: 서버 설정 및 DB 마이그레이션
 ```powershell
-cd d:\workspace_2\jarvis-incident\apps\server
+cd <repo-root>\jarvis-incident\apps\server
 copy .env.example .env
 npx prisma generate
 npx prisma migrate deploy
@@ -84,7 +84,7 @@ npm run dev
 다른 터미널에서:
 
 ```powershell
-cd d:\workspace_2\jarvis-incident\apps\worker
+cd <repo-root>\jarvis-incident\apps\worker
 copy .env.example .env
 npm run dev
 ```
@@ -96,7 +96,7 @@ npm run dev
 또 다른 터미널에서:
 
 ```powershell
-cd d:\workspace_2\jarvis-incident\apps\desktop
+cd <repo-root>\jarvis-incident\apps\desktop
 copy .env.example .env
 npm run dev
 ```
@@ -126,7 +126,7 @@ npm run dev
 서버·워커·Postgres·Redis를 한 번에 띄워서 “실서버와 비슷한 환경”으로 검증할 때 적합합니다.
 
 ```powershell
-cd d:\workspace_2\jarvis-incident\infra
+cd <repo-root>\jarvis-incident\infra
 copy .env.example .env
 docker compose up -d
 ```

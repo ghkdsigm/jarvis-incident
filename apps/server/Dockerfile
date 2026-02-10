@@ -36,7 +36,9 @@ RUN npx prisma generate --schema apps/server/prisma/schema.prisma
 RUN npm run -w @jarvis/server build
 
 # Entrypoint: run DB migrations then start server
-RUN chmod +x /app/apps/server/docker-entrypoint.sh
+# NOTE: On Windows checkouts this script may have CRLF line endings, which breaks execution in Alpine.
+RUN sed -i 's/\r$//' /app/apps/server/docker-entrypoint.sh \
+  && chmod +x /app/apps/server/docker-entrypoint.sh
 
 EXPOSE 8080
 ENTRYPOINT ["/app/apps/server/docker-entrypoint.sh"]

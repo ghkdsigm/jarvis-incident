@@ -436,8 +436,43 @@
               지식 그래프
             </button>
             <div class="ml-auto flex items-center gap-2">
-              <button type="button" class="px-2 py-1 text-xs rounded t-btn-secondary" @click="refreshInsights">
-                새로고침
+              <button
+                type="button"
+                class="px-2 py-1 text-xs rounded t-btn-secondary inline-flex items-center gap-1.5"
+                title="새로고침"
+                aria-label="새로고침"
+                @click="refreshInsights"
+              >
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" aria-hidden="true" class="shrink-0">
+                  <path
+                    d="M21 12a9 9 0 0 0-15.5-6.5L3 8"
+                    stroke="currentColor"
+                    stroke-width="1.8"
+                    stroke-linecap="round"
+                    stroke-linejoin="round"
+                  />
+                  <path
+                    d="M3 3v5h5"
+                    stroke="currentColor"
+                    stroke-width="1.8"
+                    stroke-linecap="round"
+                    stroke-linejoin="round"
+                  />
+                  <path
+                    d="M3 12a9 9 0 0 0 15.5 6.5L21 16"
+                    stroke="currentColor"
+                    stroke-width="1.8"
+                    stroke-linecap="round"
+                    stroke-linejoin="round"
+                  />
+                  <path
+                    d="M21 21v-5h-5"
+                    stroke="currentColor"
+                    stroke-width="1.8"
+                    stroke-linecap="round"
+                    stroke-linejoin="round"
+                  />
+                </svg>
               </button>
               <button type="button" class="px-2 py-1 text-xs rounded t-btn-secondary" @click="runWeeklyAiUpdate">
                 주간 업데이트
@@ -854,28 +889,30 @@
                 </button>
               </div>
 
-              <div
-                v-for="c in currentJarvisContexts"
-                :key="c.key"
-                class="p-2 rounded border t-border t-row cursor-pointer"
-                role="button"
-                tabindex="0"
-                @click="onJarvisContextClick(c.content)"
-                @keydown.enter="onJarvisContextClick(c.content)"
-                @keydown.space.prevent="onJarvisContextClick(c.content)"
-              >
-                <div class="flex items-center justify-between gap-2">
-                  <div class="text-[11px] t-text-subtle truncate">{{ c.label }} · {{ c.time }}</div>
-                  <button
-                    type="button"
-                    class="px-2 py-1 text-[11px] rounded t-btn-secondary shrink-0"
-                    @click.stop="removeCurrentRoomJarvisContext(c.key)"
-                  >
-                    해제
-                  </button>
-                </div>
-                <div class="mt-1 text-xs t-text-muted break-words jarvis-context-preview">
-                  {{ c.content }}
+              <div class="jarvis-context-list t-scrollbar">
+                <div
+                  v-for="c in currentJarvisContexts"
+                  :key="c.key"
+                  class="jarvis-context-item p-2 rounded border t-border t-row cursor-pointer"
+                  role="button"
+                  tabindex="0"
+                  @click="onJarvisContextClick(c.content)"
+                  @keydown.enter="onJarvisContextClick(c.content)"
+                  @keydown.space.prevent="onJarvisContextClick(c.content)"
+                >
+                  <div class="flex items-center justify-between gap-2">
+                    <div class="text-[11px] t-text-subtle truncate">{{ c.label }} · {{ c.time }}</div>
+                    <button
+                      type="button"
+                      class="px-2 py-1 text-[11px] rounded t-btn-secondary shrink-0"
+                      @click.stop="removeCurrentRoomJarvisContext(c.key)"
+                    >
+                      해제
+                    </button>
+                  </div>
+                  <div class="mt-1 text-xs t-text-muted jarvis-context-preview">
+                    {{ c.content }}
+                  </div>
                 </div>
               </div>
             </div>
@@ -2718,6 +2755,23 @@ watch(
   -webkit-box-orient: vertical;
   overflow: hidden;
   text-overflow: ellipsis;
-  white-space: pre-line;
+  white-space: normal;
+  overflow-wrap: anywhere;
+  word-break: break-word;
+}
+
+.jarvis-context-list {
+  /* 선택 메시지: 최대 2개 높이만 노출 + 스크롤 */
+  max-height: 168px;
+  overflow-y: auto;
+  padding: 8px;
+  border-radius: 10px;
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  scrollbar-gutter: stable;
+}
+
+.jarvis-context-item + .jarvis-context-item {
+  margin-top: 8px;
 }
 </style>

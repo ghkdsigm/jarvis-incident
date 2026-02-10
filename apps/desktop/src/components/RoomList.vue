@@ -8,8 +8,43 @@
             <button class="px-2 py-1 text-xs rounded t-btn-secondary" @click="createRoom">
               방 만들기
             </button>
-            <button class="px-2 py-1 text-xs rounded t-btn-secondary" @click="store.reloadRooms">
-              새로고침
+            <button
+              type="button"
+              class="h-7 w-7 inline-flex items-center justify-center rounded t-btn-secondary"
+              title="새로고침"
+              aria-label="새로고침"
+              @click="store.reloadRooms"
+            >
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" aria-hidden="true" class="shrink-0">
+                <path
+                  d="M21 12a9 9 0 0 0-15.5-6.5L3 8"
+                  stroke="currentColor"
+                  stroke-width="1.8"
+                  stroke-linecap="round"
+                  stroke-linejoin="round"
+                />
+                <path
+                  d="M3 3v5h5"
+                  stroke="currentColor"
+                  stroke-width="1.8"
+                  stroke-linecap="round"
+                  stroke-linejoin="round"
+                />
+                <path
+                  d="M3 12a9 9 0 0 0 15.5 6.5L21 16"
+                  stroke="currentColor"
+                  stroke-width="1.8"
+                  stroke-linecap="round"
+                  stroke-linejoin="round"
+                />
+                <path
+                  d="M21 21v-5h-5"
+                  stroke="currentColor"
+                  stroke-width="1.8"
+                  stroke-linecap="round"
+                  stroke-linejoin="round"
+                />
+              </svg>
             </button>
           </div>
         </div>

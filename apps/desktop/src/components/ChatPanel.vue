@@ -421,19 +421,67 @@
           <div class="flex items-center gap-2 mb-3">
             <button
               type="button"
-              class="px-2.5 py-1.5 text-xs rounded"
+              title="아이디어 관련, 사용자가 직접 저장한 메시지나 AI가 채팅 분석 후 자동으로 메시지를 카드로 저장합니다."
+              class="px-2.5 py-1.5 text-xs rounded inline-flex items-center gap-1.5"
               :class="insightsTab === 'cards' ? 't-btn-primary' : 't-btn-secondary'"
               @click="insightsTab = 'cards'"
             >
-              아이디어 카드
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" aria-hidden="true" class="shrink-0">
+                <path
+                  d="M7 7h10a2 2 0 0 1 2 2v9a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V9a2 2 0 0 1 2-2Z"
+                  stroke="currentColor"
+                  stroke-width="1.8"
+                  stroke-linecap="round"
+                  stroke-linejoin="round"
+                />
+                <path
+                  d="M8.5 11h7M8.5 14h5"
+                  stroke="currentColor"
+                  stroke-width="1.8"
+                  stroke-linecap="round"
+                  stroke-linejoin="round"
+                />
+              </svg>
+              <span>아이디어 카드</span>
             </button>
             <button
               type="button"
-              class="px-2.5 py-1.5 text-xs rounded"
+              title="아이디어 관련, AI가 채팅 분석 후 자동으로 노드-엣지 그래프를 생성합니다."
+              class="px-2.5 py-1.5 text-xs rounded inline-flex items-center gap-1.5"
               :class="insightsTab === 'graph' ? 't-btn-primary' : 't-btn-secondary'"
               @click="insightsTab = 'graph'"
             >
-              지식 그래프
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" aria-hidden="true" class="shrink-0">
+                <path
+                  d="M4 19V5"
+                  stroke="currentColor"
+                  stroke-width="1.8"
+                  stroke-linecap="round"
+                  stroke-linejoin="round"
+                />
+                <path
+                  d="M4 19h16"
+                  stroke="currentColor"
+                  stroke-width="1.8"
+                  stroke-linecap="round"
+                  stroke-linejoin="round"
+                />
+                <path
+                  d="M7 15l4-4 3 3 5-6"
+                  stroke="currentColor"
+                  stroke-width="1.8"
+                  stroke-linecap="round"
+                  stroke-linejoin="round"
+                />
+                <path
+                  d="M19 8v4h-4"
+                  stroke="currentColor"
+                  stroke-width="1.8"
+                  stroke-linecap="round"
+                  stroke-linejoin="round"
+                />
+              </svg>
+              <span>지식 그래프</span>
             </button>
             <div class="ml-auto flex items-center gap-2">
               <button
@@ -770,8 +818,30 @@
           >
             <div class="flex items-center justify-between gap-2 mb-2">
               <div class="text-xs t-text-muted">이모티콘</div>
-              <button type="button" class="px-2 py-1 text-xs rounded t-btn-secondary" @click="closeEmojiPicker">
-                닫기
+              <button
+                type="button"
+                class="h-7 w-7 inline-flex items-center justify-center rounded t-btn-secondary"
+                title="닫기"
+                aria-label="닫기"
+                @click="closeEmojiPicker"
+              >
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+                  <path
+                    d="M18 6L6 18"
+                    stroke="currentColor"
+                    stroke-width="1.8"
+                    stroke-linecap="round"
+                    stroke-linejoin="round"
+                  />
+                  <path
+                    d="M6 6l12 12"
+                    stroke="currentColor"
+                    stroke-width="1.8"
+                    stroke-linecap="round"
+                    stroke-linejoin="round"
+                  />
+                </svg>
+                <span class="sr-only">닫기</span>
               </button>
             </div>
 
@@ -872,8 +942,30 @@
           >
             <div class="flex items-center justify-between gap-2 mb-2">
               <div class="text-xs t-text-muted">AI 질문 및 요청</div>
-              <button type="button" class="px-2 py-1 text-xs rounded t-btn-secondary" @click="closeJarvisPopover">
-                닫기
+              <button
+                type="button"
+                class="h-7 w-7 inline-flex items-center justify-center rounded t-btn-secondary"
+                title="닫기"
+                aria-label="닫기"
+                @click="closeJarvisPopover"
+              >
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+                  <path
+                    d="M18 6L6 18"
+                    stroke="currentColor"
+                    stroke-width="1.8"
+                    stroke-linecap="round"
+                    stroke-linejoin="round"
+                  />
+                  <path
+                    d="M6 6l12 12"
+                    stroke="currentColor"
+                    stroke-width="1.8"
+                    stroke-linecap="round"
+                    stroke-linejoin="round"
+                  />
+                </svg>
+                <span class="sr-only">닫기</span>
               </button>
             </div>
 

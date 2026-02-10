@@ -39,6 +39,26 @@ export async function fetchMessages(token: string, roomId: string, take = 80): P
   return await res.json();
 }
 
+export type RoomMemberDto = {
+  id: string;
+  email: string;
+  name: string;
+  role: string;
+  isOnline: boolean;
+  lastSeenAt: string | null;
+  department: string | null;
+  avatarUrl: string | null;
+  joinedAt: string;
+};
+
+export async function fetchRoomMembers(token: string, roomId: string): Promise<RoomMemberDto[]> {
+  const res = await fetch(`${API_BASE}/rooms/${roomId}/members`, {
+    headers: { Authorization: `Bearer ${token}` }
+  });
+  if (!res.ok) throw new Error(`Room members failed: ${res.status}`);
+  return await res.json();
+}
+
 export async function translateText(
   token: string,
   input: { text: string; targetLang?: string }

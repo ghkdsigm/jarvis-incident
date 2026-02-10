@@ -67,7 +67,7 @@
       </div>
     </div>
 
-    <div class="flex-1 overflow-auto t-scrollbar" @scroll.passive="closeRoomContextMenu">
+    <div class="flex-1 overflow-auto t-scrollbar" @scroll.passive="onRoomListScroll">
       <div v-if="!store.rooms.length" class="p-3 text-xs t-text-subtle">
         방이 없습니다. 우측 상단의 '방 만들기'로 생성하세요.
       </div>
@@ -85,15 +85,67 @@
       >
         <div class="flex items-center justify-between gap-2">
           <div class="text-sm font-medium truncate">{{ r.title }}</div>
-          <div
-            class="shrink-0 text-[11px] px-2 py-0.5 rounded-full border t-chip"
-            :title="`참여자 수: ${getMemberCount(r) ?? '0'}명`"
-          >
-            {{ getMemberCount(r) ?? "0" }}
+          <div class="shrink-0 relative" @mouseenter="openMemberPopover(r.id, $event)" @mouseleave="scheduleCloseMemberPopover">
+            <div
+              class="text-[11px] px-2 py-0.5 rounded-full border t-chip select-none"
+              :title="`참여자 수: ${getMemberCount(r) ?? '0'}명 (호버 시 목록 보기)`"
+            >
+              {{ getMemberCount(r) ?? "0" }}
+            </div>
           </div>
         </div>
         <div class="text-xs t-text-subtle">{{ r.type }} · {{ r.id.slice(0, 8) }}</div>
       </button>
+    </div>
+  </div>
+
+  <!-- Members hover popover -->
+  <div
+    v-if="memberPop.open"
+    class="fixed z-50 rounded-md border t-border t-surface shadow-lg overflow-hidden"
+    :style="{ left: `${memberPop.x}px`, top: `${memberPop.y}px` }"
+    @mouseenter="cancelCloseMemberPopover"
+    @mouseleave="closeMemberPopover"
+  >
+    <div class="px-3 py-2 border-b t-border flex items-center justify-between gap-3">
+      <div class="text-xs t-text-muted">참여자</div>
+      <div class="text-xs t-text-subtle">{{ activeMemberCountLabel }}</div>
+    </div>
+    <div class="max-h-[280px] overflow-auto t-scrollbar">
+      <div v-if="memberPop.loading" class="px-3 py-3 text-xs t-text-subtle">불러오는 중...</div>
+      <div v-else-if="memberPop.members.length === 0" class="px-3 py-3 text-xs t-text-subtle">참여자 정보가 없습니다.</div>
+      <div v-else class="py-1">
+        <div v-for="m in memberPop.members" :key="m.id" class="px-3 py-2 flex items-center gap-2 t-row">
+          <div class="h-7 w-7 rounded-full border t-border overflow-hidden bg-[#FBFBFB] shrink-0">
+            <img
+              v-if="m.avatarUrl"
+              :src="m.avatarUrl"
+              alt=""
+              class="h-full w-full object-cover"
+              referrerpolicy="no-referrer"
+            />
+            <div v-else class="h-full w-full flex items-center justify-center text-[11px] font-medium t-text-muted">
+              {{ getInitials(m.name) }}
+            </div>
+          </div>
+          <div class="min-w-0 flex-1">
+            <div class="flex items-center gap-2 min-w-0">
+              <div class="text-sm font-medium truncate">{{ m.name }}</div>
+              <div
+                v-if="m.isOnline"
+                class="text-[10px] px-1.5 py-0.5 rounded-full border"
+                style="border-color: #00CE7D; color: #00CE7D"
+              >
+                ONLINE
+              </div>
+            </div>
+            <div class="text-xs t-text-subtle truncate">
+              {{ m.department || m.email }}
+            </div>
+          </div>
+          <div class="text-[10px] t-text-subtle shrink-0">{{ m.role }}</div>
+        </div>
+      </div>
     </div>
   </div>
 
@@ -173,10 +225,41 @@ const roomCtx = ref<{ open: boolean; x: number; y: number; room: any | null }>({
   room: null
 });
 
+const memberPop = ref<{
+  open: boolean;
+  roomId: string;
+  x: number;
+  y: number;
+  members: any[];
+  loading: boolean;
+}>({
+  open: false,
+  roomId: "",
+  x: 0,
+  y: 0,
+  members: [],
+  loading: false
+});
+let memberCloseTimer: number | null = null;
+
 function getMemberCount(r: any): number | null {
   const c = r?._count?.members ?? r?.membersCount ?? r?.memberCount ?? null;
   return typeof c === "number" ? c : null;
 }
+
+function getInitials(name: string): string {
+  const s = String(name ?? "").trim();
+  if (!s) return "?";
+  const parts = s.split(/\s+/).filter(Boolean);
+  const a = parts[0]?.[0] ?? s[0];
+  const b = parts.length > 1 ? parts[1]?.[0] : "";
+  return (a + b).toUpperCase();
+}
+
+const activeMemberCountLabel = computed(() => {
+  const n = memberPop.value.members.length;
+  return `${n}명`;
+});
 
 const filteredRooms = computed(() => {
   if (!store.token) return [];
@@ -186,6 +269,57 @@ const filteredRooms = computed(() => {
   const set = new Set(matchedRoomIds.value);
   return store.rooms.filter((r) => set.has(r.id));
 });
+
+function cancelCloseMemberPopover() {
+  if (memberCloseTimer) window.clearTimeout(memberCloseTimer);
+  memberCloseTimer = null;
+}
+
+function scheduleCloseMemberPopover() {
+  cancelCloseMemberPopover();
+  memberCloseTimer = window.setTimeout(() => {
+    closeMemberPopover();
+  }, 120);
+}
+
+function closeMemberPopover() {
+  cancelCloseMemberPopover();
+  memberPop.value.open = false;
+  memberPop.value.roomId = "";
+  memberPop.value.members = [];
+  memberPop.value.loading = false;
+}
+
+async function openMemberPopover(roomId: string, e: MouseEvent) {
+  cancelCloseMemberPopover();
+  const anchor = e.currentTarget as HTMLElement | null;
+  if (!anchor) return;
+
+  const rect = anchor.getBoundingClientRect();
+  const width = 320;
+  const pad = 8;
+  const left = Math.max(pad, Math.min(rect.right - width, window.innerWidth - width - pad));
+  const top = Math.max(pad, Math.min(rect.bottom + 6, window.innerHeight - 320 - pad));
+
+  memberPop.value.open = true;
+  memberPop.value.roomId = roomId;
+  memberPop.value.x = left;
+  memberPop.value.y = top;
+  memberPop.value.loading = true;
+  memberPop.value.members = [];
+
+  try {
+    const members = await store.ensureRoomMembers(roomId);
+    // If user moved away quickly, ignore stale results
+    if (!memberPop.value.open || memberPop.value.roomId !== roomId) return;
+    memberPop.value.members = members ?? [];
+  } catch {
+    if (!memberPop.value.open || memberPop.value.roomId !== roomId) return;
+    memberPop.value.members = [];
+  } finally {
+    if (memberPop.value.open && memberPop.value.roomId === roomId) memberPop.value.loading = false;
+  }
+}
 
 function clearSearch() {
   roomSearch.value = "";
@@ -252,6 +386,11 @@ function closeRoomContextMenu() {
   roomCtx.value.room = null;
 }
 
+function onRoomListScroll() {
+  closeRoomContextMenu();
+  closeMemberPopover();
+}
+
 async function openRoomContextMenu(e: MouseEvent, r: any) {
   roomCtx.value.open = true;
   roomCtx.value.room = r;
@@ -296,7 +435,10 @@ function actionLeaveRoom() {
 }
 
 function onKeydown(e: KeyboardEvent) {
-  if (e.key === "Escape") closeRoomContextMenu();
+  if (e.key === "Escape") {
+    closeRoomContextMenu();
+    closeMemberPopover();
+  }
 }
 
 onMounted(() => {

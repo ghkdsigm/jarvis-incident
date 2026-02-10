@@ -1,5 +1,5 @@
 import { defineStore } from "pinia";
-import { createRoom, devLogin, fetchRooms, fetchMessages } from "../api/http";
+import { createRoom, devLogin, fetchRoomMembers, fetchRooms, fetchMessages, type RoomMemberDto } from "../api/http";
 import { WsClient } from "../api/ws";
 import type { MessageDto } from "@jarvis/shared";
 
@@ -23,6 +23,9 @@ export const useSessionStore = defineStore("session", {
     messagesByRoom: {} as Record<string, MessageDto[]>,
     joinedByRoom: {} as Record<string, boolean>,
     ws: null as WsClient | null,
+
+    roomMembersByRoom: {} as Record<string, RoomMemberDto[]>,
+    roomMembersLoadingByRoom: {} as Record<string, boolean>,
 
     // Screen share (single active room)
     screenShareMode: "idle" as "idle" | "sharing" | "viewing",
@@ -177,6 +180,22 @@ export const useSessionStore = defineStore("session", {
       const msgs = await fetchMessages(this.token, roomId, take);
       this.messagesByRoom[roomId] = msgs;
       return msgs;
+    },
+
+    async ensureRoomMembers(roomId: string): Promise<RoomMemberDto[]> {
+      if (!this.token) return this.roomMembersByRoom[roomId] ?? [];
+      const existing = this.roomMembersByRoom[roomId];
+      if (existing && existing.length) return existing;
+      if (this.roomMembersLoadingByRoom[roomId]) return this.roomMembersByRoom[roomId] ?? [];
+
+      this.roomMembersLoadingByRoom = { ...this.roomMembersLoadingByRoom, [roomId]: true };
+      try {
+        const members = await fetchRoomMembers(this.token, roomId);
+        this.roomMembersByRoom = { ...this.roomMembersByRoom, [roomId]: members };
+        return members;
+      } finally {
+        this.roomMembersLoadingByRoom = { ...this.roomMembersLoadingByRoom, [roomId]: false };
+      }
     },
 
     pushLocal(roomId: string, msg: MessageDto) {

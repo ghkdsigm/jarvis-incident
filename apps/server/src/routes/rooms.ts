@@ -17,6 +17,47 @@ export async function roomRoutes(app: FastifyInstance) {
     return memberships.map((m) => m.room);
   });
 
+  app.get("/rooms/:roomId/members", { preHandler: app.authenticate }, async (req: any) => {
+    const roomId = req.params.roomId as string;
+    const userId = req.user.sub as string;
+
+    const membership = await prisma.roomMember.findUnique({
+      where: { roomId_userId: { roomId, userId } }
+    });
+    if (!membership) return [];
+
+    const members = await prisma.roomMember.findMany({
+      where: { roomId },
+      orderBy: [{ role: "asc" }, { joinedAt: "asc" }],
+      select: {
+        role: true,
+        joinedAt: true,
+        user: {
+          select: {
+            id: true,
+            email: true,
+            name: true,
+            isOnline: true,
+            lastSeenAt: true
+          }
+        }
+      }
+    });
+
+    // Keep shape future-proof for department/avatarUrl if added later.
+    return members.map((m) => ({
+      id: m.user.id,
+      email: m.user.email,
+      name: m.user.name,
+      role: m.role,
+      isOnline: m.user.isOnline,
+      lastSeenAt: m.user.lastSeenAt ? m.user.lastSeenAt.toISOString() : null,
+      department: null,
+      avatarUrl: null,
+      joinedAt: m.joinedAt.toISOString()
+    }));
+  });
+
   app.post("/rooms", { preHandler: app.authenticate }, async (req: any) => {
     const userId = req.user.sub as string;
     const body = (req.body ?? {}) as { title?: string; type?: string; memberUserIds?: string[] };

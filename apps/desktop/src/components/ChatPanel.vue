@@ -155,7 +155,7 @@
           >
           <div v-for="m in store.activeMessages" :key="m.id" class="w-full">
             <div class="flex" :class="bubbleWrapClass(m)">
-              <div class="max-w-[72%] min-w-0">
+              <div class="max-w-[72%] min-w-0 flex flex-col" :class="bubbleColumnClass(m)">
                 <div class="text-[11px] t-text-subtle flex items-center gap-2 w-full" :class="metaClass(m)">
                   <span class="font-mono">{{ labelFor(m) }}</span>
                   <span class="tabular-nums">{{ formatChatTime(m.createdAt) }}</span>
@@ -245,8 +245,8 @@
                 </div>
 
               <div
-                class="group mt-1 rounded-2xl border px-3 py-2 text-sm whitespace-pre-wrap break-words"
-                :class="bubbleClass(m)"
+                class="group mt-1 max-w-full rounded-2xl border px-3 py-2 text-sm whitespace-pre-wrap break-words"
+                :class="[bubbleClass(m), editingId === m.id ? 'block w-full' : 'inline-block']"
               >
                 <template v-if="editingId === m.id">
                   <textarea
@@ -292,7 +292,7 @@
           >
             <div v-for="m in store.activeMessages" :key="m.id" class="w-full">
               <div class="flex" :class="bubbleWrapClass(m)">
-                <div class="max-w-[72%] min-w-0">
+                <div class="max-w-[72%] min-w-0 flex flex-col" :class="bubbleColumnClass(m)">
                   <div class="text-[11px] t-text-subtle flex items-center gap-2 w-full" :class="metaClass(m)">
                     <span class="font-mono">{{ labelFor(m) }}</span>
                     <span class="tabular-nums">{{ formatChatTime(m.createdAt) }}</span>
@@ -350,8 +350,8 @@
                     </div>
                   </div>
                   <div
-                    class="mt-1 rounded-2xl border px-3 py-2 text-sm whitespace-pre-wrap break-words"
-                    :class="bubbleClass(m)"
+                    class="mt-1 max-w-full rounded-2xl border px-3 py-2 text-sm whitespace-pre-wrap break-words"
+                    :class="[bubbleClass(m), editingId === m.id ? 'block w-full' : 'inline-block']"
                   >
                     <template v-if="editingId === m.id">
                       <textarea
@@ -390,7 +390,7 @@
           >
             <div v-for="m in store.activeMessages" :key="'tr:' + m.id" class="w-full">
               <div class="flex" :class="bubbleWrapClass(m)">
-                <div class="max-w-[72%] min-w-0">
+                <div class="max-w-[72%] min-w-0 flex flex-col" :class="bubbleColumnClass(m)">
                   <div class="text-[11px] t-text-subtle flex items-center gap-2 w-full" :class="metaClass(m)">
                     <span class="font-mono">{{ translateTargetLang }}</span>
                     <span class="tabular-nums">{{ formatChatTime(m.createdAt) }}</span>
@@ -398,7 +398,7 @@
                     <span v-else-if="translatePendingById[translationKeyFor(m)]" class="t-text-faint">번역 중…</span>
                   </div>
                   <div
-                    class="mt-1 rounded-2xl border px-3 py-2 text-sm whitespace-pre-wrap break-words"
+                    class="mt-1 inline-block max-w-full rounded-2xl border px-3 py-2 text-sm whitespace-pre-wrap break-words"
                     :class="bubbleClass(m)"
                   >
                     <div :class="isDeleted(m) ? 'italic t-text-muted' : ''">
@@ -654,7 +654,7 @@
           class="px-3 py-2 text-sm rounded t-btn-secondary inline-flex items-center gap-2"
           :class="isListening ? 't-btn-primary' : ''"
           type="button"
-          title="경청하기 (마이크)"
+          title="클릭하시면 화자구분 없이 회의내용을 실시간으로 임시저장하고 한번 더 클릭시 AI 질문/요청 건으로 자동으로 보내집니다."
           @click="toggleListening"
         >
           <svg width="20" height="20" viewBox="0 0 24 24" fill="none" aria-hidden="true" class="shrink-0">
@@ -2390,6 +2390,11 @@ function bubbleWrapClass(m: any) {
   if (isBot(m)) return "justify-start";
   if (isOtherUser(m)) return "justify-start";
   return "justify-center";
+}
+function bubbleColumnClass(m: any) {
+  if (isMine(m)) return "items-end";
+  if (isBot(m) || isOtherUser(m)) return "items-start";
+  return "items-center";
 }
 function metaClass(m: any) {
   if (isMine(m)) return "justify-end";

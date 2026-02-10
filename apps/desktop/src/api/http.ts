@@ -158,3 +158,21 @@ export async function fetchRoomGraph(
   if (!res.ok) throw new Error(`Graph failed: ${res.status}`);
   return await res.json();
 }
+
+/** 지난 회의록 요약해서 현재 방에 가져오기 (선택한 이전 방의 최근 약 1주일 메시지를 요약해 봇 메시지로 등록) */
+export async function importMeetingSummary(
+  token: string,
+  targetRoomId: string,
+  sourceRoomId: string
+): Promise<{ ok: boolean }> {
+  const res = await fetch(`${API_BASE}/rooms/${targetRoomId}/import-meeting-summary`, {
+    method: "POST",
+    headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
+    body: JSON.stringify({ sourceRoomId })
+  });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error((err as any).error ?? `Import failed: ${res.status}`);
+  }
+  return await res.json();
+}

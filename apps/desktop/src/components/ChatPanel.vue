@@ -109,7 +109,15 @@
           </button>
           <button
             class="px-2 py-1 text-xs rounded t-btn-secondary"
+            title="참여했던 이전 채팅방의 최근 회의 내용을 요약해 이 방에 가져옵니다"
+            @click="openPastMeetingImport"
+          >
+            회의록 불러오기
+          </button>
+          <button
+            class="px-2 py-1 text-xs rounded t-btn-secondary"
             :disabled="store.screenShareMode === 'sharing' && store.screenShareRoomId === store.activeRoomId"
+            title="채팅중인 사람들의 화면을 공유합니다."
             @click="startShare"
           >
             화면 공유 시작
@@ -1348,6 +1356,55 @@
     </template>
   </CommonModal>
 
+  <CommonModal :open="pastMeetingImportOpen" title="지난 회의록 가져오기" @close="closePastMeetingImport">
+    <div class="space-y-3">
+      <div class="text-xs t-text-muted">
+        참여했던 채팅방 중 하나를 선택하면, 해당 방의 최근 약 1주일 메시지를 요약(요약/주요결정/미해결논의)해 현재 방에 AI 메시지로 올립니다.
+      </div>
+      <div class="max-h-[320px] overflow-auto rounded border t-border t-scrollbar">
+        <label
+          v-for="r in pastMeetingRooms"
+          :key="r.id"
+          class="flex items-center gap-3 px-3 py-2 cursor-pointer border-b t-border last:border-b-0 t-row"
+          :class="selectedSourceRoomId === r.id ? 't-row-active' : ''"
+        >
+          <input
+            v-model="selectedSourceRoomId"
+            type="radio"
+            name="past-meeting-room"
+            class="t-accent"
+            :value="r.id"
+          />
+          <div class="min-w-0 flex-1">
+            <div class="text-sm font-medium truncate" :class="theme === 'dark' ? 'text-white' : 'text-black'">{{ r.title }}</div>
+            <div class="text-xs t-text-subtle">{{ formatPastMeetingTime(r.lastMessageAt ?? r.createdAt) }}</div>
+          </div>
+        </label>
+        <div v-if="pastMeetingError" class="p-3 text-xs text-[#FB4F4F]">
+          {{ pastMeetingError }}
+        </div>
+        <div v-else-if="!pastMeetingRooms.length" class="p-3 text-xs t-text-subtle">
+          현재 방을 제외한 참여 중인 다른 채팅방이 없습니다.
+        </div>
+      </div>
+    </div>
+    <template #footer>
+      <div class="flex items-center justify-between gap-2">
+        <div class="text-xs t-text-subtle">선택한 방의 최근 1주일 분량을 요약해 이 방에 올립니다.</div>
+        <div class="flex items-center gap-2">
+          <button class="px-3 py-2 text-sm rounded t-btn-secondary" @click="closePastMeetingImport">취소</button>
+          <button
+            class="px-3 py-2 text-sm rounded t-btn-primary disabled:opacity-50"
+            :disabled="!selectedSourceRoomId || pastMeetingLoading"
+            @click="submitPastMeetingImport"
+          >
+            {{ pastMeetingLoading ? "요약 생성 중…" : "요약해서 가져오기" }}
+          </button>
+        </div>
+      </div>
+    </template>
+  </CommonModal>
+
   <CommonModal :open="deleteConfirmOpen" title="메시지 삭제" @close="closeDeleteConfirm">
     <div class="text-sm">이 메시지를 삭제할까요?</div>
     <div class="mt-2 text-xs t-text-subtle">삭제 후에는 메시지가 “(삭제된 메시지)”로 표시됩니다.</div>
@@ -1413,6 +1470,7 @@ import {
   generateWeeklyIdeaCards,
   type IdeaCardDto,
   fetchUsers,
+  importMeetingSummary,
   translateText
 } from "../api/http";
 import CommonModal from "./ui/CommonModal.vue";
@@ -2620,6 +2678,57 @@ const inviteLoading = ref(false);
 const inviteErrorText = ref("");
 
 let invitePollTimer: any = null;
+
+const pastMeetingImportOpen = ref(false);
+const selectedSourceRoomId = ref<string>("");
+const pastMeetingLoading = ref(false);
+const pastMeetingError = ref("");
+
+const pastMeetingRooms = computed(() => {
+  const active = store.activeRoomId;
+  if (!active) return [];
+  return store.rooms.filter((r) => r.id !== active);
+});
+
+function formatPastMeetingTime(v: any) {
+  const d = new Date(v);
+  if (!Number.isFinite(d.getTime())) return "";
+  const now = Date.now();
+  const diff = now - d.getTime();
+  const day = 24 * 60 * 60 * 1000;
+  if (diff < day) return "오늘";
+  if (diff < 2 * day) return "어제";
+  if (diff < 7 * day) return `${Math.floor(diff / day)}일 전`;
+  if (diff < 30 * day) return `${Math.floor(diff / (7 * day))}주 전`;
+  return d.toLocaleDateString("ko-KR", { year: "numeric", month: "short", day: "numeric" });
+}
+
+function openPastMeetingImport() {
+  selectedSourceRoomId.value = "";
+  pastMeetingError.value = "";
+  pastMeetingImportOpen.value = true;
+}
+
+function closePastMeetingImport() {
+  pastMeetingImportOpen.value = false;
+  pastMeetingError.value = "";
+}
+
+async function submitPastMeetingImport() {
+  const target = store.activeRoomId;
+  const source = selectedSourceRoomId.value;
+  if (!store.token || !target || !source) return;
+  pastMeetingLoading.value = true;
+  pastMeetingError.value = "";
+  try {
+    await importMeetingSummary(store.token, target, source);
+    closePastMeetingImport();
+  } catch (e: any) {
+    pastMeetingError.value = e?.message ?? "요약 가져오기에 실패했습니다.";
+  } finally {
+    pastMeetingLoading.value = false;
+  }
+}
 
 async function loadColleagues() {
   if (!store.token) return;

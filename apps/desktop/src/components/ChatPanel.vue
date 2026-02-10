@@ -164,13 +164,14 @@
             :class="[isMiniMode ? 'p-2' : 'p-3', theme === 'dark' ? 'bg-zinc-900' : 'bg-gray-100']"
             :style="{ opacity: String(chatOpacity) }"
           >
-          <div v-for="m in store.activeMessages" :key="m.id" class="w-full">
+          <div v-for="m in store.activeMessages" :key="m.id" class="w-full" @contextmenu.prevent="onMessageContextMenu($event, m)">
             <div class="flex" :class="bubbleWrapClass(m)">
               <div class="max-w-[72%] min-w-0 flex flex-col" :class="bubbleColumnClass(m)">
                 <div class="text-[11px] t-text-subtle flex items-center gap-2 w-full" :class="metaClass(m)">
                   <span class="font-mono">{{ labelFor(m) }}</span>
                   <span class="tabular-nums">{{ formatChatTime(m.createdAt) }}</span>
                   <span v-if="isDeleted(m)" class="t-text-faint">삭제됨</span>
+                  <span v-else-if="isMessageConfirmed(m)" class="text-[#00CE7D]" title="확인완료">✓</span>
                   <button
                     type="button"
                     class="h-5 w-5 inline-flex items-center justify-center rounded t-btn-secondary shrink-0 bg-transparent border-0 disabled:opacity-40"
@@ -345,13 +346,14 @@
             :style="{ opacity: String(chatOpacity) }"
             @scroll="onScrollLeft"
           >
-            <div v-for="m in store.activeMessages" :key="m.id" class="w-full">
+            <div v-for="m in store.activeMessages" :key="m.id" class="w-full" @contextmenu.prevent="onMessageContextMenu($event, m)">
               <div class="flex" :class="bubbleWrapClass(m)">
                 <div class="max-w-[72%] min-w-0 flex flex-col" :class="bubbleColumnClass(m)">
                   <div class="text-[11px] t-text-subtle flex items-center gap-2 w-full" :class="metaClass(m)">
                     <span class="font-mono">{{ labelFor(m) }}</span>
                     <span class="tabular-nums">{{ formatChatTime(m.createdAt) }}</span>
                     <span v-if="isDeleted(m)" class="t-text-faint">삭제됨</span>
+                    <span v-else-if="isMessageConfirmed(m)" class="text-[#00CE7D]" title="확인완료">✓</span>
                     <button
                       type="button"
                       class="ml-auto h-5 w-5 inline-flex items-center justify-center rounded t-btn-secondary shrink-0 bg-transparent border-0 disabled:opacity-40"
@@ -490,13 +492,14 @@
             :style="{ opacity: String(chatOpacity) }"
             @scroll="onScrollRight"
           >
-            <div v-for="m in store.activeMessages" :key="'tr:' + m.id" class="w-full">
+            <div v-for="m in store.activeMessages" :key="'tr:' + m.id" class="w-full" @contextmenu.prevent="onMessageContextMenu($event, m)">
               <div class="flex" :class="bubbleWrapClass(m)">
                 <div class="max-w-[72%] min-w-0 flex flex-col" :class="bubbleColumnClass(m)">
                   <div class="text-[11px] t-text-subtle flex items-center gap-2 w-full" :class="metaClass(m)">
                     <span class="font-mono">{{ translateTargetLang }}</span>
                     <span class="tabular-nums">{{ formatChatTime(m.createdAt) }}</span>
                     <span v-if="isDeleted(m)" class="t-text-faint">삭제됨</span>
+                    <span v-else-if="isMessageConfirmed(m)" class="text-[#00CE7D]" title="확인완료">✓</span>
                     <span v-else-if="translatePendingById[translationKeyFor(m)]" class="t-text-faint">번역 중…</span>
                   </div>
                   <div
@@ -1405,6 +1408,49 @@
     </template>
   </CommonModal>
 
+  <CommonModal :open="forwardMessageOpen" title="다른 채팅방으로 전달하기" @close="closeForwardMessage">
+    <div class="space-y-3">
+      <div class="text-xs t-text-muted">
+        메시지를 전달할 채팅방을 선택한 뒤 전달하기를 누르세요.
+      </div>
+      <div class="max-h-[320px] overflow-auto rounded border t-border t-scrollbar">
+        <label
+          v-for="r in forwardRooms"
+          :key="r.id"
+          class="flex items-center gap-3 px-3 py-2 cursor-pointer border-b t-border last:border-b-0 t-row"
+          :class="selectedForwardRoomId === r.id ? 't-row-active' : ''"
+        >
+          <input
+            v-model="selectedForwardRoomId"
+            type="radio"
+            name="forward-room"
+            class="t-accent"
+            :value="r.id"
+          />
+          <div class="min-w-0 flex-1">
+            <div class="text-sm font-medium truncate" :class="theme === 'dark' ? 'text-white' : 'text-black'">{{ r.title }}</div>
+            <div class="text-xs t-text-subtle">{{ formatPastMeetingTime(r.lastMessageAt ?? r.createdAt) }}</div>
+          </div>
+        </label>
+        <div v-if="!forwardRooms.length" class="p-3 text-xs t-text-subtle">
+          현재 방을 제외한 다른 채팅방이 없습니다.
+        </div>
+      </div>
+    </div>
+    <template #footer>
+      <div class="flex items-center justify-end gap-2">
+        <button class="px-3 py-2 text-sm rounded t-btn-secondary" @click="closeForwardMessage">취소</button>
+        <button
+          class="px-3 py-2 text-sm rounded t-btn-primary disabled:opacity-50"
+          :disabled="!selectedForwardRoomId"
+          @click="submitForwardMessage"
+        >
+          전달하기
+        </button>
+      </div>
+    </template>
+  </CommonModal>
+
   <CommonModal :open="deleteConfirmOpen" title="메시지 삭제" @close="closeDeleteConfirm">
     <div class="text-sm">이 메시지를 삭제할까요?</div>
     <div class="mt-2 text-xs t-text-subtle">삭제 후에는 메시지가 “(삭제된 메시지)”로 표시됩니다.</div>
@@ -1454,6 +1500,31 @@
       </div>
     </template>
   </CommonModal>
+
+  <!-- 메시지 우클릭 컨텍스트 메뉴: 확인완료 / 전달하기 -->
+  <div
+    v-if="contextMenuMessage"
+    ref="contextMenuRef"
+    class="fixed z-[100] min-w-[140px] rounded border t-border t-surface shadow-lg py-1"
+    :style="{ left: contextMenuPos.x + 'px', top: contextMenuPos.y + 'px' }"
+    @pointerdown.stop
+  >
+    <button
+      type="button"
+      class="w-full text-left px-3 py-2 text-sm rounded-none t-btn-secondary bg-transparent border-0 hover:t-row flex items-center gap-2"
+      @click="markMessageConfirmed(contextMenuMessage)"
+    >
+      <span class="text-[#00CE7D]">✓</span>
+      {{ isMessageConfirmed(contextMenuMessage) ? "확인완료 취소" : "확인완료" }}
+    </button>
+    <button
+      type="button"
+      class="w-full text-left px-3 py-2 text-sm rounded-none t-btn-secondary bg-transparent border-0 hover:t-row"
+      @click="openForwardMessageModal(contextMenuMessage)"
+    >
+      전달하기
+    </button>
+  </div>
 </template>
 
 <script setup lang="ts">
@@ -2634,6 +2705,9 @@ function onDocPointerDown(ev: PointerEvent) {
     // 메뉴 내부 클릭은 @pointerdown.stop으로 막음. 여기까지 왔으면 바깥 클릭.
     closeMessageMenu();
   }
+  if (contextMenuMessage.value && !contextMenuRef.value?.contains(t as Node)) {
+    closeMessageContextMenu();
+  }
 }
 
 function onDocKeyDown(ev: KeyboardEvent) {
@@ -2685,6 +2759,15 @@ const pastMeetingLoading = ref(false);
 const pastMeetingError = ref("");
 
 const pastMeetingRooms = computed(() => {
+  const active = store.activeRoomId;
+  if (!active) return [];
+  return store.rooms.filter((r) => r.id !== active);
+});
+
+const forwardMessageOpen = ref(false);
+const forwardMessageTarget = ref<any | null>(null);
+const selectedForwardRoomId = ref<string>("");
+const forwardRooms = computed(() => {
   const active = store.activeRoomId;
   if (!active) return [];
   return store.rooms.filter((r) => r.id !== active);
@@ -2768,6 +2851,10 @@ const editingText = ref<string>("");
 const editingAttachmentBlock = ref<string>("");
 const editingHasAttachments = computed(() => !!String(editingAttachmentBlock.value ?? "").trim());
 const messageMenuOpenId = ref<string>("");
+const contextMenuMessage = ref<any | null>(null);
+const contextMenuPos = ref({ x: 0, y: 0 });
+const contextMenuRef = ref<HTMLDivElement | null>(null);
+const confirmedMessageIds = ref<Set<string>>(new Set());
 const deleteConfirmOpen = ref(false);
 const deleteTarget = ref<any | null>(null);
 
@@ -2855,6 +2942,47 @@ function toggleMessageMenu(m: any) {
 }
 function closeMessageMenu() {
   messageMenuOpenId.value = "";
+}
+
+function onMessageContextMenu(ev: MouseEvent, m: any) {
+  ev.preventDefault();
+  contextMenuMessage.value = m;
+  contextMenuPos.value = { x: ev.clientX, y: ev.clientY };
+}
+function closeMessageContextMenu() {
+  contextMenuMessage.value = null;
+}
+function isMessageConfirmed(m: any) {
+  return m?.id != null && confirmedMessageIds.value.has(String(m.id));
+}
+function markMessageConfirmed(m: any) {
+  if (m?.id == null) return;
+  const id = String(m.id);
+  const next = new Set(confirmedMessageIds.value);
+  if (next.has(id)) next.delete(id);
+  else next.add(id);
+  confirmedMessageIds.value = next;
+  closeMessageContextMenu();
+}
+function openForwardMessageModal(m: any) {
+  forwardMessageTarget.value = m;
+  selectedForwardRoomId.value = "";
+  closeMessageContextMenu();
+  forwardMessageOpen.value = true;
+}
+function closeForwardMessage() {
+  forwardMessageOpen.value = false;
+  forwardMessageTarget.value = null;
+  selectedForwardRoomId.value = "";
+}
+function submitForwardMessage() {
+  const targetRoomId = selectedForwardRoomId.value;
+  const msg = forwardMessageTarget.value;
+  if (!targetRoomId || !msg) return;
+  const content = parsedFor(msg).text ? String(parsedFor(msg).text).trim() : "";
+  if (!content) return;
+  store.sendMessage(targetRoomId, content);
+  closeForwardMessage();
 }
 
 function confirmDelete(m: any) {

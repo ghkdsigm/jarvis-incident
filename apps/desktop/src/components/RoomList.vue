@@ -85,7 +85,17 @@
         @contextmenu.prevent="openRoomContextMenu($event, r)"
       >
         <div class="flex items-center justify-between gap-2">
-          <div class="text-xs font-medium truncate" :class="theme === 'dark' ? 'text-white' : 'text-black'">{{ r.title }}</div>
+          <div class="min-w-0 flex-1 flex items-center gap-1.5">
+            <span
+              v-if="isPinned(r.id)"
+              class="shrink-0 inline-flex items-center justify-center text-[10px] opacity-80"
+              title="맨 위 고정됨"
+              aria-hidden="true"
+            >
+              📌
+            </span>
+            <div class="text-xs font-medium truncate min-w-0" :class="theme === 'dark' ? 'text-white' : 'text-black'">{{ r.title }}</div>
+          </div>
           <div class="shrink-0 relative" @mouseenter="openMemberPopover(r.id, $event)" @mouseleave="scheduleCloseMemberPopover">
             <div
               class="text-[11px] px-2 py-0.5 rounded-full border t-chip select-none"
@@ -166,8 +176,21 @@
     @click.stop
     @contextmenu.prevent
   >
-    <button class="w-full text-left px-3 py-2 text-sm t-row" type="button" @click="actionMoveRoomTop">
+    <button
+      v-if="!isPinned(roomCtx.room?.id)"
+      class="w-full text-left px-3 py-2 text-sm t-row"
+      type="button"
+      @click="actionMoveRoomTop"
+    >
       채팅창 맨위로 올리기
+    </button>
+    <button
+      v-if="isPinned(roomCtx.room?.id)"
+      class="w-full text-left px-3 py-2 text-sm t-row"
+      type="button"
+      @click="actionUnpinRoom"
+    >
+      채팅방 맨위 고정 풀기
     </button>
     <button class="w-full text-left px-3 py-2 text-sm t-row" type="button" @click="actionLeaveRoom">
       채팅방 나가기
@@ -271,6 +294,11 @@ function getInitials(name: string): string {
   return (a + b).toUpperCase();
 }
 
+function isPinned(roomId: string | undefined): boolean {
+  if (!roomId) return false;
+  return (store.pinnedRoomIds ?? []).includes(roomId);
+}
+
 function formatRelativeTime(isoOrDate: string | Date | null | undefined): string {
   const date = isoOrDate ? new Date(isoOrDate) : null;
   if (!date || Number.isNaN(date.getTime())) return "—";
@@ -281,14 +309,14 @@ function formatRelativeTime(isoOrDate: string | Date | null | undefined): string
   const hour = Math.floor(min / 60);
   const day = Math.floor(hour / 24);
   const week = Math.floor(day / 7);
-  if (sec < 60) return "just now";
-  if (min < 60) return `${min}m ago`;
-  if (hour < 24) return `${hour}h ago`;
-  if (day === 1) return "1 day ago";
-  if (day < 7) return `${day} days ago`;
-  if (week === 1) return "1 week ago";
-  if (week < 4) return `${week} weeks ago`;
-  return `${Math.floor(day / 30)}mo ago`;
+  if (sec < 60) return "방금 전";
+  if (min < 60) return `${min}분 전`;
+  if (hour < 24) return hour === 1 ? "한 시간 전" : `${hour}시간 전`;
+  if (day === 1) return "하루 전";
+  if (day < 7) return `${day}일 전`;
+  if (week === 1) return "일주일 전";
+  if (week < 4) return `${week}주 전`;
+  return `${Math.floor(day / 30)}개월 전`;
 }
 
 const activeMemberCountLabel = computed(() => {
@@ -448,6 +476,13 @@ function actionMoveRoomTop() {
   const r = roomCtx.value.room;
   if (!r?.id) return closeRoomContextMenu();
   store.moveRoomToTop(r.id);
+  closeRoomContextMenu();
+}
+
+function actionUnpinRoom() {
+  const r = roomCtx.value.room;
+  if (!r?.id) return closeRoomContextMenu();
+  store.unpinRoom(r.id);
   closeRoomContextMenu();
 }
 

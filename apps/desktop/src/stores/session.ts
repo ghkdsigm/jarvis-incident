@@ -387,6 +387,14 @@ export const useSessionStore = defineStore("session", {
       this.applyRoomOrdering();
     },
 
+    unpinRoom(roomId: string) {
+      const id = String(roomId || "");
+      if (!id) return;
+      this.pinnedRoomIds = (this.pinnedRoomIds ?? []).filter((x) => x !== id);
+      this.persistPinnedRooms();
+      this.applyRoomOrdering();
+    },
+
     leaveRoom(roomId: string) {
       if (!this.ws) return;
       this.ws.send({ type: "room.leave", roomId });

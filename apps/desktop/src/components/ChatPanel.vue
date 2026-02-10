@@ -8,6 +8,30 @@
         </div>
         <div v-if="store.activeRoomId && !isMiniMode" class="flex items-center gap-2 shrink-0">
           <button
+            class="h-8 w-8 inline-flex items-center justify-center rounded"
+            :class="activePane === 'insights' ? 't-btn-primary' : 't-btn-secondary'"
+            title="인사이트 (아이디어 카드/지식 그래프)"
+            aria-label="인사이트 (아이디어 카드/지식 그래프)"
+            @click="toggleInsightsPane"
+          >
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+              <path
+                d="M9 18h6M10 22h4"
+                stroke="currentColor"
+                stroke-width="1.8"
+                stroke-linecap="round"
+                stroke-linejoin="round"
+              />
+              <path
+                d="M8 14c-1.2-1-2-2.5-2-4.2A6 6 0 0 1 12 4a6 6 0 0 1 6 5.8c0 1.7-.8 3.2-2 4.2-1 0.8-1.5 2.1-1.5 3.4V18H9.5v-.6c0-1.3-.5-2.6-1.5-3.4Z"
+                stroke="currentColor"
+                stroke-width="1.8"
+                stroke-linecap="round"
+                stroke-linejoin="round"
+              />
+            </svg>
+          </button>
+          <button
             class="h-8 w-8 inline-flex items-center justify-center rounded t-btn-secondary"
             title="이름 변경"
             aria-label="채팅방 이름 변경"
@@ -120,85 +144,105 @@
       </div>
     </div>
 
-    <div class="flex-1 min-h-0" :class="isTranslateOn ? 'overflow-hidden' : ''">
-      <div
-        v-if="!isTranslateOn"
-        ref="scroller"
-        class="h-full overflow-auto space-y-2 t-surface t-scrollbar"
-        :class="isMiniMode ? 'p-2' : 'p-3'"
-        :style="{ opacity: String(chatOpacity) }"
-      >
-        <div v-for="m in store.activeMessages" :key="m.id" class="w-full">
-          <div class="flex" :class="bubbleWrapClass(m)">
-            <div class="max-w-[72%] min-w-0">
-              <div class="text-[11px] t-text-subtle flex items-center gap-2 w-full" :class="metaClass(m)">
-                <span class="font-mono">{{ labelFor(m) }}</span>
-                <span class="tabular-nums">{{ formatChatTime(m.createdAt) }}</span>
-                <span v-if="isDeleted(m)" class="t-text-faint">삭제됨</span>
-                <button
-                  type="button"
-                  class="ml-auto h-5 w-5 inline-flex items-center justify-center rounded t-btn-secondary shrink-0 bg-transparent border-0"
-                  title="이 메시지로 AI 질문/요청"
-                  aria-label="이 메시지로 AI 질문/요청"
-                  @pointerdown.stop
-                  @click.stop="openJarvisPopoverFromMessage(m)"
-                >
-                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" aria-hidden="true">
-                    <rect
-                      x="6"
-                      y="6"
-                      width="12"
-                      height="12"
-                      rx="3"
-                      stroke="currentColor"
-                      stroke-width="1.8"
-                      stroke-linecap="round"
-                      stroke-linejoin="round"
-                    />
-                    <path d="M10 12h.01" stroke="currentColor" stroke-width="2.8" stroke-linecap="round" />
-                    <path d="M14 12h.01" stroke="currentColor" stroke-width="2.8" stroke-linecap="round" />
-                    <path
-                      d="M9 15h6"
-                      stroke="currentColor"
-                      stroke-width="1.8"
-                      stroke-linecap="round"
-                      stroke-linejoin="round"
-                    />
-                  </svg>
-                </button>
-                <div v-if="canEditOrDelete(m)" class="relative">
+    <div class="flex-1 min-h-0" :class="activePane === 'chat' && isTranslateOn ? 'overflow-hidden' : ''">
+      <template v-if="activePane === 'chat'">
+        <template v-if="!isTranslateOn">
+          <div
+            ref="scroller"
+            class="h-full overflow-auto space-y-2 t-surface t-scrollbar"
+            :class="isMiniMode ? 'p-2' : 'p-3'"
+            :style="{ opacity: String(chatOpacity) }"
+          >
+          <div v-for="m in store.activeMessages" :key="m.id" class="w-full">
+            <div class="flex" :class="bubbleWrapClass(m)">
+              <div class="max-w-[72%] min-w-0">
+                <div class="text-[11px] t-text-subtle flex items-center gap-2 w-full" :class="metaClass(m)">
+                  <span class="font-mono">{{ labelFor(m) }}</span>
+                  <span class="tabular-nums">{{ formatChatTime(m.createdAt) }}</span>
+                  <span v-if="isDeleted(m)" class="t-text-faint">삭제됨</span>
                   <button
                     type="button"
-                    class="h-5 w-5 inline-flex items-center justify-center rounded t-btn-secondary shrink-0 bg-transparent border-0"
-                    title="메시지 메뉴"
-                    aria-label="메시지 메뉴"
+                    class="h-5 w-5 inline-flex items-center justify-center rounded t-btn-secondary shrink-0 bg-transparent border-0 disabled:opacity-40"
+                    title="아이디어 카드로 저장"
+                    aria-label="아이디어 카드로 저장"
+                    :disabled="isDeleted(m)"
                     @pointerdown.stop
-                    @click.stop="toggleMessageMenu(m)"
+                    @click.stop="saveMessageAsCard(m)"
                   >
-                    ⋯
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+                      <path
+                        d="M7 3h10a2 2 0 0 1 2 2v16l-7-4-7 4V5a2 2 0 0 1 2-2Z"
+                        stroke="currentColor"
+                        stroke-width="1.8"
+                        stroke-linecap="round"
+                        stroke-linejoin="round"
+                      />
+                    </svg>
                   </button>
-                  <div
-                    v-if="messageMenuOpenId === m.id"
-                    class="absolute z-10 mt-1 right-0 w-[120px] rounded border t-border t-surface shadow-lg p-1"
+                  <button
+                    type="button"
+                    class="ml-auto h-5 w-5 inline-flex items-center justify-center rounded t-btn-secondary shrink-0 bg-transparent border-0"
+                    title="이 메시지로 AI 질문/요청"
+                    aria-label="이 메시지로 AI 질문/요청"
                     @pointerdown.stop
+                    @click.stop="openJarvisPopoverFromMessage(m)"
                   >
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+                      <rect
+                        x="6"
+                        y="6"
+                        width="12"
+                        height="12"
+                        rx="3"
+                        stroke="currentColor"
+                        stroke-width="1.8"
+                        stroke-linecap="round"
+                        stroke-linejoin="round"
+                      />
+                      <path d="M10 12h.01" stroke="currentColor" stroke-width="2.8" stroke-linecap="round" />
+                      <path d="M14 12h.01" stroke="currentColor" stroke-width="2.8" stroke-linecap="round" />
+                      <path
+                        d="M9 15h6"
+                        stroke="currentColor"
+                        stroke-width="1.8"
+                        stroke-linecap="round"
+                        stroke-linejoin="round"
+                      />
+                    </svg>
+                  </button>
+                  <div v-if="canEditOrDelete(m)" class="relative">
                     <button
                       type="button"
-                      class="w-full text-left px-2 py-1.5 text-xs rounded t-btn-secondary bg-transparent border-0 hover:t-row"
-                      @click="startEdit(m); closeMessageMenu()"
+                      class="h-5 w-5 inline-flex items-center justify-center rounded t-btn-secondary shrink-0 bg-transparent border-0"
+                      title="메시지 메뉴"
+                      aria-label="메시지 메뉴"
+                      @pointerdown.stop
+                      @click.stop="toggleMessageMenu(m)"
                     >
-                      수정
+                      ⋯
                     </button>
-                    <button
-                      type="button"
-                      class="w-full text-left px-2 py-1.5 text-xs rounded t-btn-danger bg-transparent border-0 hover:t-row"
-                      @click="confirmDelete(m); closeMessageMenu()"
+                    <div
+                      v-if="messageMenuOpenId === m.id"
+                      class="absolute z-10 mt-1 right-0 w-[120px] rounded border t-border t-surface shadow-lg p-1"
+                      @pointerdown.stop
                     >
-                      삭제
-                    </button>
+                      <button
+                        type="button"
+                        class="w-full text-left px-2 py-1.5 text-xs rounded t-btn-secondary bg-transparent border-0 hover:t-row"
+                        @click="startEdit(m); closeMessageMenu()"
+                      >
+                        수정
+                      </button>
+                      <button
+                        type="button"
+                        class="w-full text-left px-2 py-1.5 text-xs rounded t-btn-danger bg-transparent border-0 hover:t-row"
+                        @click="confirmDelete(m); closeMessageMenu()"
+                      >
+                        삭제
+                      </button>
+                    </div>
                   </div>
                 </div>
-              </div>
 
               <div
                 class="group mt-1 rounded-2xl border px-3 py-2 text-sm whitespace-pre-wrap break-words"
@@ -235,8 +279,10 @@
           </div>
         </div>
       </div>
+        </template>
 
-      <div v-else class="h-full grid grid-cols-2 gap-2" :class="isMiniMode ? 'p-2' : 'p-3'">
+      <template v-else>
+        <div class="h-full grid grid-cols-2 gap-2" :class="isMiniMode ? 'p-2' : 'p-3'">
         <div class="min-h-0 rounded border t-border overflow-hidden">
           <div
             ref="scrollerLeft"
@@ -251,7 +297,26 @@
                     <span class="font-mono">{{ labelFor(m) }}</span>
                     <span class="tabular-nums">{{ formatChatTime(m.createdAt) }}</span>
                     <span v-if="isDeleted(m)" class="t-text-faint">삭제됨</span>
-                    <div v-if="canEditOrDelete(m)" class="ml-auto relative">
+                    <button
+                      type="button"
+                      class="ml-auto h-5 w-5 inline-flex items-center justify-center rounded t-btn-secondary shrink-0 bg-transparent border-0 disabled:opacity-40"
+                      title="아이디어 카드로 저장"
+                      aria-label="아이디어 카드로 저장"
+                      :disabled="isDeleted(m)"
+                      @pointerdown.stop
+                      @click.stop="saveMessageAsCard(m)"
+                    >
+                      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+                        <path
+                          d="M7 3h10a2 2 0 0 1 2 2v16l-7-4-7 4V5a2 2 0 0 1 2-2Z"
+                          stroke="currentColor"
+                          stroke-width="1.8"
+                          stroke-linecap="round"
+                          stroke-linejoin="round"
+                        />
+                      </svg>
+                    </button>
+                    <div v-if="canEditOrDelete(m)" class="relative">
                       <button
                         type="button"
                         class="h-5 w-5 inline-flex items-center justify-center rounded t-btn-secondary shrink-0 bg-transparent border-0"
@@ -349,9 +414,158 @@
           </div>
         </div>
       </div>
+      </template>
+      </template>
+      <template v-else>
+        <div class="h-full overflow-auto t-surface t-scrollbar" :class="isMiniMode ? 'p-2' : 'p-3'">
+          <div class="flex items-center gap-2 mb-3">
+            <button
+              type="button"
+              class="px-2.5 py-1.5 text-xs rounded"
+              :class="insightsTab === 'cards' ? 't-btn-primary' : 't-btn-secondary'"
+              @click="insightsTab = 'cards'"
+            >
+              아이디어 카드
+            </button>
+            <button
+              type="button"
+              class="px-2.5 py-1.5 text-xs rounded"
+              :class="insightsTab === 'graph' ? 't-btn-primary' : 't-btn-secondary'"
+              @click="insightsTab = 'graph'"
+            >
+              지식 그래프
+            </button>
+            <div class="ml-auto flex items-center gap-2">
+              <button type="button" class="px-2 py-1 text-xs rounded t-btn-secondary" @click="refreshInsights">
+                새로고침
+              </button>
+              <button type="button" class="px-2 py-1 text-xs rounded t-btn-secondary" @click="runWeeklyAiUpdate">
+                주간 업데이트
+              </button>
+            </div>
+          </div>
+
+          <div v-if="insightsTab === 'cards'">
+            <div v-if="cardsError" class="mb-2 text-xs t-text-faint">에러: {{ cardsError }}</div>
+            <div v-if="cardsLoading" class="text-sm t-text-subtle">카드 로딩 중…</div>
+            <div v-else-if="!ideaCards.length" class="text-sm t-text-subtle">
+              아직 저장된 카드가 없습니다. 메시지 옆의 북마크 아이콘으로 저장해보세요.
+            </div>
+            <div v-else class="columns-1 md:columns-2 xl:columns-3 gap-3 [column-fill:_balance]">
+              <div
+                v-for="c in ideaCards"
+                :key="c.id"
+                class="mb-3 break-inside-avoid rounded border t-border t-surface shadow-sm p-3"
+              >
+                <div class="flex items-start gap-2">
+                  <div class="min-w-0">
+                    <div class="text-sm font-semibold truncate">{{ c.title }}</div>
+                    <div class="mt-0.5 text-[11px] t-text-subtle flex items-center gap-2">
+                      <span class="tabular-nums">{{ formatChatTime(c.createdAt) }}</span>
+                      <span v-if="c.kind === 'weekly_ai'" class="px-1.5 py-0.5 rounded bg-[#C2D6BE] text-[#0C3A27]">
+                        AI(주간)
+                      </span>
+                    </div>
+                  </div>
+                  <button
+                    type="button"
+                    class="ml-auto h-7 w-7 inline-flex items-center justify-center rounded t-btn-danger bg-transparent border-0"
+                    title="카드 삭제"
+                    aria-label="카드 삭제"
+                    @click="removeCard(c.id)"
+                  >
+                    <span class="text-sm leading-none">×</span>
+                  </button>
+                </div>
+
+                <div class="mt-2 space-y-2 text-xs">
+                  <div v-if="c.content?.problem">
+                    <div class="font-semibold t-text">Problem</div>
+                    <div class="t-text-subtle whitespace-pre-wrap break-words">{{ c.content.problem }}</div>
+                  </div>
+                  <div v-if="c.content?.proposal">
+                    <div class="font-semibold t-text">Proposal</div>
+                    <div class="t-text-subtle whitespace-pre-wrap break-words">{{ c.content.proposal }}</div>
+                  </div>
+                  <div v-if="c.content?.impact">
+                    <div class="font-semibold t-text">Impact</div>
+                    <div class="t-text-subtle whitespace-pre-wrap break-words">{{ c.content.impact }}</div>
+                  </div>
+                  <div v-if="c.content?.constraints">
+                    <div class="font-semibold t-text">Constraints</div>
+                    <div class="t-text-subtle whitespace-pre-wrap break-words">{{ c.content.constraints }}</div>
+                  </div>
+                  <div v-if="Array.isArray(c.content?.owners) && c.content.owners.length">
+                    <div class="font-semibold t-text">Owner 후보</div>
+                    <div class="t-text-subtle">{{ c.content.owners.join(", ") }}</div>
+                  </div>
+                  <div v-if="Array.isArray(c.content?.evidence) && c.content.evidence.length">
+                    <div class="font-semibold t-text">Evidence</div>
+                    <ul class="t-text-subtle space-y-1">
+                      <li v-for="(e, idx) in c.content.evidence" :key="idx" class="break-words">
+                        {{ e }}
+                      </li>
+                    </ul>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div v-else>
+            <div v-if="graphError" class="mb-2 text-xs t-text-faint">에러: {{ graphError }}</div>
+            <div v-if="graphLoading" class="text-sm t-text-subtle">그래프 로딩 중…</div>
+            <div v-else-if="!graphData?.nodes?.length" class="text-sm t-text-subtle">
+              아직 그래프를 만들 정보가 부족합니다. 카드(특히 AI 주간 카드)가 생기면 연결이 만들어집니다.
+            </div>
+            <svg
+              v-else
+              :width="graphSvgSize"
+              :height="graphSvgSize"
+              class="w-full max-w-[780px] mx-auto rounded border t-border bg-white"
+              viewBox="0 0 560 560"
+            >
+              <g>
+                <line
+                  v-for="e in graphData.edges"
+                  :key="e.id"
+                  :x1="nodePos(e.source).x"
+                  :y1="nodePos(e.source).y"
+                  :x2="nodePos(e.target).x"
+                  :y2="nodePos(e.target).y"
+                  stroke="#E0E0E0"
+                  stroke-width="1.2"
+                />
+              </g>
+              <g>
+                <g v-for="n in graphData.nodes" :key="n.id">
+                  <circle
+                    :cx="nodePos(n.id).x"
+                    :cy="nodePos(n.id).y"
+                    :r="n.type === 'room' ? 26 : n.type === 'card' ? 16 : 12"
+                    :fill="n.type === 'room' ? '#00694D' : n.type === 'card' ? '#C2D6BE' : '#FBFBFB'"
+                    :stroke="n.type === 'room' ? '#00694D' : '#B7B7B7'"
+                    stroke-width="1.2"
+                  />
+                  <text
+                    :x="nodePos(n.id).x"
+                    :y="nodePos(n.id).y + (n.type === 'room' ? 5 : 4)"
+                    text-anchor="middle"
+                    :fill="n.type === 'room' ? '#FFFFFF' : '#262626'"
+                    font-size="11"
+                    font-family="Pretendard, Noto Sans, Arial"
+                  >
+                    {{ n.label.length > 10 ? n.label.slice(0, 10) + "…" : n.label }}
+                  </text>
+                </g>
+              </g>
+            </svg>
+          </div>
+        </div>
+      </template>
     </div>
 
-    <div class="border-t t-border t-surface" :class="isMiniMode ? 'p-2' : 'p-3'">
+    <div v-if="activePane === 'chat'" class="border-t t-border t-surface" :class="isMiniMode ? 'p-2' : 'p-3'">
       <div v-if="!isMiniMode" class="mb-2 flex items-center gap-3">
         <button
           class="px-3 py-2 text-sm rounded t-btn-secondary inline-flex items-center gap-2"
@@ -550,8 +764,30 @@
           </div>
         </div>
         <div class="relative shrink-0 flex items-center gap-2">
-          <button class="py-2 text-sm rounded t-btn-secondary" :class="isMiniMode ? 'px-3' : 'px-6'" @click="send">
-            전송
+          <button
+            type="button"
+            class="h-10 inline-flex items-center justify-center rounded t-btn-secondary shrink-0"
+            :class="isMiniMode ? 'w-10' : 'w-20'"
+            title="메시지 전송"
+            aria-label="메시지 전송"
+            @click="send"
+          >
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+              <path
+                d="M22 2L11 13"
+                stroke="currentColor"
+                stroke-width="1.8"
+                stroke-linecap="round"
+                stroke-linejoin="round"
+              />
+              <path
+                d="M22 2L15 22l-4-9-9-4 20-7z"
+                stroke="currentColor"
+                stroke-width="1.8"
+                stroke-linecap="round"
+                stroke-linejoin="round"
+              />
+            </svg>
           </button>
           <button
             ref="jarvisButton"
@@ -895,7 +1131,16 @@ import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from "vue"
 import { useSessionStore } from "../stores/session";
 import { useWindowStore } from "../stores/window";
 import { isJarvisTrigger, stripJarvisPrefix } from "@jarvis/shared";
-import { fetchUsers, translateText } from "../api/http";
+import {
+  createIdeaCard,
+  deleteIdeaCard,
+  fetchIdeaCards,
+  fetchRoomGraph,
+  generateWeeklyIdeaCards,
+  type IdeaCardDto,
+  fetchUsers,
+  translateText
+} from "../api/http";
 import CommonModal from "./ui/CommonModal.vue";
 
 const store = useSessionStore();
@@ -913,6 +1158,159 @@ const imageInput = ref<HTMLInputElement | null>(null);
 const fileInput = ref<HTMLInputElement | null>(null);
 const LS_RECENT_EMOJIS = "jarvis.desktop.recentEmojis";
 const recentEmojis = ref<string[]>([]);
+
+// Insights (아이디어 카드 / 지식 그래프)
+type InsightsTab = "cards" | "graph";
+const activePane = ref<"chat" | "insights">("chat");
+const insightsTab = ref<InsightsTab>("cards");
+const ideaCards = ref<IdeaCardDto[]>([]);
+const cardsLoading = ref(false);
+const cardsError = ref<string>("");
+const graphLoading = ref(false);
+const graphError = ref<string>("");
+const graphData = ref<{ roomId: string; weekStart: string | null; nodes: any[]; edges: any[] } | null>(null);
+const graphSvgSize = 560;
+
+const graphPosById = computed<Record<string, { x: number; y: number }>>(() => {
+  const g = graphData.value;
+  const map: Record<string, { x: number; y: number }> = {};
+  if (!g?.nodes?.length) return map;
+
+  const cx = graphSvgSize / 2;
+  const cy = graphSvgSize / 2;
+  const room = g.nodes.find((n) => n.type === "room") ?? g.nodes[0];
+  if (room) map[room.id] = { x: cx, y: cy };
+
+  const cards = g.nodes.filter((n) => n.type === "card");
+  const tags = g.nodes.filter((n) => n.type !== "room" && n.type !== "card");
+
+  const placeRing = (nodes: any[], r: number, startAngle = -Math.PI / 2) => {
+    const n = nodes.length;
+    if (!n) return;
+    for (let i = 0; i < n; i++) {
+      const a = startAngle + (2 * Math.PI * i) / n;
+      map[nodes[i].id] = { x: cx + r * Math.cos(a), y: cy + r * Math.sin(a) };
+    }
+  };
+
+  placeRing(tags, 165);
+  placeRing(cards, 240);
+  return map;
+});
+
+function nodePos(id: string) {
+  return graphPosById.value[id] ?? { x: graphSvgSize / 2, y: graphSvgSize / 2 };
+}
+
+function weekStartIsoUtcFor(date = new Date()) {
+  const d = new Date(Date.UTC(date.getUTCFullYear(), date.getUTCMonth(), date.getUTCDate(), 0, 0, 0, 0));
+  const day = d.getUTCDay(); // 0=Sun..6=Sat
+  const diff = (day + 6) % 7; // Mon=0 .. Sun=6
+  d.setUTCDate(d.getUTCDate() - diff);
+  return d.toISOString();
+}
+
+const insightsWeekStartIso = ref<string>(weekStartIsoUtcFor());
+
+async function loadIdeaCards() {
+  if (!store.token || !store.activeRoomId) return;
+  cardsLoading.value = true;
+  cardsError.value = "";
+  try {
+    ideaCards.value = await fetchIdeaCards(store.token, store.activeRoomId, 120);
+  } catch (e: any) {
+    cardsError.value = e?.message ?? "카드 목록 로드 실패";
+  } finally {
+    cardsLoading.value = false;
+  }
+}
+
+async function loadGraph() {
+  if (!store.token || !store.activeRoomId) return;
+  graphLoading.value = true;
+  graphError.value = "";
+  try {
+    graphData.value = await fetchRoomGraph(store.token, store.activeRoomId, { weekStart: insightsWeekStartIso.value });
+  } catch (e: any) {
+    graphError.value = e?.message ?? "그래프 로드 실패";
+    graphData.value = null;
+  } finally {
+    graphLoading.value = false;
+  }
+}
+
+async function refreshInsights() {
+  await Promise.all([loadIdeaCards(), loadGraph()]);
+}
+
+function toggleInsightsPane() {
+  activePane.value = activePane.value === "chat" ? "insights" : "chat";
+  if (activePane.value === "insights") refreshInsights();
+}
+
+async function saveMessageAsCard(m: any) {
+  if (!store.token || !store.activeRoomId) return;
+  try {
+    const created = await createIdeaCard(store.token, store.activeRoomId, { sourceMessageId: m.id });
+    // Keep list fresh if user is in insights
+    if (activePane.value === "insights") {
+      ideaCards.value = [created, ...ideaCards.value.filter((c) => c.id !== created.id)];
+    }
+  } catch (e: any) {
+    // best-effort: surface as system message
+    store.pushLocal(store.activeRoomId, {
+      id: `sys:${Date.now()}`,
+      roomId: store.activeRoomId,
+      senderType: "system",
+      senderUserId: null,
+      content: `에러: 카드 저장 실패 (${e?.message ?? "UNKNOWN"})`,
+      createdAt: new Date().toISOString()
+    } as any);
+  }
+}
+
+async function removeCard(cardId: string) {
+  if (!store.token || !store.activeRoomId) return;
+  try {
+    await deleteIdeaCard(store.token, store.activeRoomId, cardId);
+    ideaCards.value = ideaCards.value.filter((c) => c.id !== cardId);
+    // graph becomes stale; refresh lazily
+    if (insightsTab.value === "graph") loadGraph();
+  } catch (e: any) {
+    cardsError.value = e?.message ?? "카드 삭제 실패";
+  }
+}
+
+async function runWeeklyAiUpdate() {
+  if (!store.token || !store.activeRoomId) return;
+  cardsLoading.value = true;
+  cardsError.value = "";
+  try {
+    await generateWeeklyIdeaCards(store.token, store.activeRoomId, { weekStart: insightsWeekStartIso.value });
+    await refreshInsights();
+  } catch (e: any) {
+    cardsError.value = e?.message ?? "주간 업데이트 실패";
+  } finally {
+    cardsLoading.value = false;
+  }
+}
+
+watch(
+  () => insightsTab.value,
+  (t) => {
+    if (activePane.value === "insights" && t === "graph") loadGraph();
+  }
+);
+
+watch(
+  () => store.activeRoomId,
+  () => {
+    if (activePane.value === "insights") {
+      insightsWeekStartIso.value = weekStartIsoUtcFor();
+      refreshInsights();
+    }
+  }
+);
 
 const EMOJIS = [
   "😀",

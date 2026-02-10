@@ -69,3 +69,27 @@ model AiRequest {
   room Room @relation(fields: [roomId], references: [id], onDelete: Cascade)
   user User @relation(fields: [requestedBy], references: [id], onDelete: Cascade)
 }
+
+model IdeaCard {
+  id              String   @id @default(uuid())
+  roomId          String
+  createdBy       String?
+  sourceMessageId String?
+  kind            String   @default("manual") // manual | weekly_ai
+  weekStart       DateTime?
+
+  title   String
+  content Json
+  graph   Json?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  room          Room     @relation(fields: [roomId], references: [id], onDelete: Cascade)
+  user          User?    @relation(fields: [createdBy], references: [id], onDelete: SetNull)
+  sourceMessage Message? @relation(fields: [sourceMessageId], references: [id], onDelete: SetNull)
+
+  @@index([roomId, createdAt])
+  @@index([roomId, weekStart])
+  @@index([sourceMessageId])
+}

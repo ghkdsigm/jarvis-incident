@@ -107,7 +107,7 @@
           </button>
         </div>
 
-        <div class="mt-4 text-[11px] t-text-subtle">
+        <div class="mt-4 text-[11px] text-gray-400">
           현재는 개발 로그인(dev auth)만 연결되어 있어요.
         </div>
       </div>

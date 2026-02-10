@@ -19,5 +19,6 @@ export const env = {
   // Optional: used by /translate endpoint
   openaiApiKey: process.env.OPENAI_API_KEY ?? "",
   openaiBaseUrl: process.env.OPENAI_BASE_URL ?? "https://api.openai.com/v1",
-  openaiTranslateModel: process.env.OPENAI_TRANSLATE_MODEL ?? "gpt-4o-mini"
+  openaiTranslateModel: process.env.OPENAI_TRANSLATE_MODEL ?? "gpt-4o-mini",
+  openaiIdeaModel: process.env.OPENAI_IDEA_MODEL ?? "gpt-4o-mini"
 };

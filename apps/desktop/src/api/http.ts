@@ -67,3 +67,74 @@ export async function fetchUsers(
   if (!res.ok) throw new Error(`Users failed: ${res.status}`);
   return await res.json();
 }
+
+export type IdeaCardDto = {
+  id: string;
+  roomId: string;
+  createdBy: string | null;
+  sourceMessageId: string | null;
+  kind: "manual" | "weekly_ai" | string;
+  weekStart: string | null;
+  title: string;
+  content: any;
+  graph: any | null;
+  createdAt: string;
+  updatedAt: string;
+};
+
+export async function fetchIdeaCards(token: string, roomId: string, take = 80): Promise<IdeaCardDto[]> {
+  const url = new URL(`${API_BASE}/rooms/${roomId}/cards`);
+  url.searchParams.set("take", String(take));
+  const res = await fetch(url, { headers: { Authorization: `Bearer ${token}` } });
+  if (!res.ok) throw new Error(`Cards failed: ${res.status}`);
+  return await res.json();
+}
+
+export async function createIdeaCard(
+  token: string,
+  roomId: string,
+  input: { title?: string; content?: any; graph?: any | null; sourceMessageId?: string | null } = {}
+): Promise<IdeaCardDto> {
+  const res = await fetch(`${API_BASE}/rooms/${roomId}/cards`, {
+    method: "POST",
+    headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
+    body: JSON.stringify(input)
+  });
+  if (!res.ok) throw new Error(`Create card failed: ${res.status}`);
+  return await res.json();
+}
+
+export async function deleteIdeaCard(token: string, roomId: string, cardId: string): Promise<{ ok: boolean }> {
+  const res = await fetch(`${API_BASE}/rooms/${roomId}/cards/${cardId}`, {
+    method: "DELETE",
+    headers: { Authorization: `Bearer ${token}` }
+  });
+  if (!res.ok) throw new Error(`Delete card failed: ${res.status}`);
+  return await res.json();
+}
+
+export async function generateWeeklyIdeaCards(
+  token: string,
+  roomId: string,
+  input: { weekStart: string }
+): Promise<{ ok: boolean; created: number; reason?: string }> {
+  const res = await fetch(`${API_BASE}/rooms/${roomId}/cards/generate-weekly`, {
+    method: "POST",
+    headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
+    body: JSON.stringify(input)
+  });
+  if (!res.ok) throw new Error(`Generate weekly cards failed: ${res.status}`);
+  return await res.json();
+}
+
+export async function fetchRoomGraph(
+  token: string,
+  roomId: string,
+  input?: { weekStart?: string }
+): Promise<{ roomId: string; weekStart: string | null; nodes: any[]; edges: any[] }> {
+  const url = new URL(`${API_BASE}/rooms/${roomId}/graph`);
+  if (input?.weekStart) url.searchParams.set("weekStart", input.weekStart);
+  const res = await fetch(url, { headers: { Authorization: `Bearer ${token}` } });
+  if (!res.ok) throw new Error(`Graph failed: ${res.status}`);
+  return await res.json();
+}

@@ -80,11 +80,12 @@
         :key="r.id"
         class="w-full text-left px-3 py-2 border-b t-border t-row"
         :class="store.activeRoomId === r.id ? 't-row-active' : ''"
+        :title="r.title"
         @click="store.openRoom(r.id)"
         @contextmenu.prevent="openRoomContextMenu($event, r)"
       >
         <div class="flex items-center justify-between gap-2">
-          <div class="text-sm font-medium truncate" :class="theme === 'dark' ? 'text-white' : 'text-black'">{{ r.title }}</div>
+          <div class="text-xs font-medium truncate" :class="theme === 'dark' ? 'text-white' : 'text-black'">{{ r.title }}</div>
           <div class="shrink-0 relative" @mouseenter="openMemberPopover(r.id, $event)" @mouseleave="scheduleCloseMemberPopover">
             <div
               class="text-[11px] px-2 py-0.5 rounded-full border t-chip select-none"
@@ -94,7 +95,7 @@
             </div>
           </div>
         </div>
-        <div class="text-xs t-text-subtle">{{ r.type }} · {{ r.id.slice(0, 8) }}</div>
+        <div class="text-xs t-text-subtle">{{ formatRelativeTime(r.lastMessageAt ?? r.createdAt) }}</div>
       </button>
     </div>
   </div>
@@ -247,8 +248,18 @@ const memberPop = ref<{
 let memberCloseTimer: number | null = null;
 
 function getMemberCount(r: any): number | null {
-  const c = r?._count?.members ?? r?.membersCount ?? r?.memberCount ?? null;
-  return typeof c === "number" ? c : null;
+  // Prefer loaded member list (includes me) when available.
+  const rid = String(r?.id ?? "");
+  const loaded = rid ? store.roomMembersByRoom?.[rid] : null;
+  if (Array.isArray(loaded)) return loaded.length;
+
+  const raw = r?._count?.members ?? r?.membersCount ?? r?.memberCount ?? null;
+  if (typeof raw === "number") return raw;
+  if (typeof raw === "string") {
+    const n = Number.parseInt(raw, 10);
+    return Number.isFinite(n) ? n : null;
+  }
+  return null;
 }
 
 function getInitials(name: string): string {
@@ -258,6 +269,26 @@ function getInitials(name: string): string {
   const a = parts[0]?.[0] ?? s[0];
   const b = parts.length > 1 ? parts[1]?.[0] : "";
   return (a + b).toUpperCase();
+}
+
+function formatRelativeTime(isoOrDate: string | Date | null | undefined): string {
+  const date = isoOrDate ? new Date(isoOrDate) : null;
+  if (!date || Number.isNaN(date.getTime())) return "—";
+  const now = Date.now();
+  const ms = now - date.getTime();
+  const sec = Math.floor(ms / 1000);
+  const min = Math.floor(sec / 60);
+  const hour = Math.floor(min / 60);
+  const day = Math.floor(hour / 24);
+  const week = Math.floor(day / 7);
+  if (sec < 60) return "just now";
+  if (min < 60) return `${min}m ago`;
+  if (hour < 24) return `${hour}h ago`;
+  if (day === 1) return "1 day ago";
+  if (day < 7) return `${day} days ago`;
+  if (week === 1) return "1 week ago";
+  if (week < 4) return `${week} weeks ago`;
+  return `${Math.floor(day / 30)}mo ago`;
 }
 
 const activeMemberCountLabel = computed(() => {

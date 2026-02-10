@@ -6,6 +6,7 @@ import type { MessageDto } from "@jarvis/shared";
 const LS_AUTOLOGIN = "jarvis.desktop.autologin";
 const LS_DEVCREDS = "jarvis.desktop.devCreds";
 const LS_AUTH = "jarvis.desktop.auth";
+const LS_PINNED_ROOMS = "jarvis.desktop.pinnedRooms";
 
 type DevCreds = { email: string; name: string };
 
@@ -27,6 +28,10 @@ export const useSessionStore = defineStore("session", {
     roomMembersByRoom: {} as Record<string, RoomMemberDto[]>,
     roomMembersLoadingByRoom: {} as Record<string, boolean>,
 
+    // Room ordering
+    // - "move to top" acts like pin: pinned rooms stay above non-pinned rooms
+    pinnedRoomIds: [] as string[],
+
     // Screen share (single active room)
     screenShareMode: "idle" as "idle" | "sharing" | "viewing",
     screenShareLocal: null as MediaStream | null,
@@ -44,8 +49,64 @@ export const useSessionStore = defineStore("session", {
     }
   },
   actions: {
+    applyRoomOrdering(preferRoomId?: string) {
+      if (!this.rooms.length) return;
+      const pinnedIds = (this.pinnedRoomIds ?? []).filter(Boolean);
+      const roomById = new Map<string, any>(this.rooms.map((r) => [r.id, r]));
+
+      const pinned: any[] = [];
+      for (const id of pinnedIds) {
+        const r = roomById.get(id);
+        if (r) pinned.push(r);
+      }
+      const pinnedSet = new Set(pinned.map((r) => r.id));
+
+      let rest = this.rooms.filter((r) => !pinnedSet.has(r.id));
+      const ts = (r: any) => new Date(r?.lastMessageAt || r?.createdAt || 0).getTime();
+      rest = [...rest].sort((a, b) => ts(b) - ts(a)); // newest first
+      if (preferRoomId) {
+        const idx = rest.findIndex((r) => r.id === preferRoomId);
+        if (idx > 0) {
+          const [picked] = rest.splice(idx, 1);
+          rest = [picked, ...rest];
+        }
+      }
+
+      this.rooms = [...pinned, ...rest];
+
+      // keep pinned list clean (drop deleted/left rooms)
+      const nextPinned = pinned.map((r) => r.id);
+      if (nextPinned.join("|") !== pinnedIds.filter((id) => roomById.has(id)).join("|")) {
+        this.pinnedRoomIds = nextPinned;
+        try {
+          localStorage.setItem(LS_PINNED_ROOMS, JSON.stringify(this.pinnedRoomIds));
+        } catch {
+          // ignore
+        }
+      }
+    },
+
+    loadPinnedRooms() {
+      try {
+        const raw = localStorage.getItem(LS_PINNED_ROOMS);
+        const parsed = raw ? (JSON.parse(raw) as unknown) : null;
+        this.pinnedRoomIds = Array.isArray(parsed) ? parsed.map(String).filter(Boolean) : [];
+      } catch {
+        this.pinnedRoomIds = [];
+      }
+    },
+
+    persistPinnedRooms() {
+      try {
+        localStorage.setItem(LS_PINNED_ROOMS, JSON.stringify(this.pinnedRoomIds ?? []));
+      } catch {
+        // ignore
+      }
+    },
+
     async initAuth() {
       if (this.authReady) return;
+      this.loadPinnedRooms();
       try {
         const rawAuto = localStorage.getItem(LS_AUTOLOGIN);
         this.autoLoginEnabled = rawAuto === "1";
@@ -170,6 +231,7 @@ export const useSessionStore = defineStore("session", {
       this.activeRoomId = "";
       this.messagesByRoom = {};
       this.joinedByRoom = {};
+      this.pinnedRoomIds = [];
       this.cleanupRtc(true);
     },
 
@@ -201,11 +263,17 @@ export const useSessionStore = defineStore("session", {
     pushLocal(roomId: string, msg: MessageDto) {
       const list = this.messagesByRoom[roomId] ?? [];
       this.messagesByRoom[roomId] = [...list, msg];
+      const at = msg?.createdAt;
+      if (at) {
+        this.rooms = this.rooms.map((r) => (r.id === roomId ? { ...r, lastMessageAt: at } : r));
+        this.applyRoomOrdering();
+      }
     },
 
     async reloadRooms() {
       if (!this.token) return;
       this.rooms = await fetchRooms(this.token);
+      this.applyRoomOrdering();
       if (!this.activeRoomId && this.rooms.length) {
         await this.openRoom(this.rooms[0].id);
       }
@@ -240,6 +308,8 @@ export const useSessionStore = defineStore("session", {
       const created = await createRoom(this.token, { title: title?.trim() || "New Room", type: "group" });
       // refresh list (server returns memberships)
       this.rooms = await fetchRooms(this.token);
+      // new room should appear at top (but below pinned rooms)
+      this.applyRoomOrdering(created.id);
       await this.openRoom(created.id);
     },
 
@@ -308,10 +378,13 @@ export const useSessionStore = defineStore("session", {
     },
 
     moveRoomToTop(roomId: string) {
-      const idx = this.rooms.findIndex((r) => r.id === roomId);
-      if (idx <= 0) return;
-      const room = this.rooms[idx];
-      this.rooms = [room, ...this.rooms.slice(0, idx), ...this.rooms.slice(idx + 1)];
+      const id = String(roomId || "");
+      if (!id) return;
+      const next = (this.pinnedRoomIds ?? []).filter((x) => x !== id);
+      next.unshift(id);
+      this.pinnedRoomIds = next;
+      this.persistPinnedRooms();
+      this.applyRoomOrdering();
     },
 
     leaveRoom(roomId: string) {
@@ -433,6 +506,10 @@ export const useSessionStore = defineStore("session", {
         const roomId = p.roomId;
 
         this.rooms = this.rooms.filter((r) => r.id !== roomId);
+        if (this.pinnedRoomIds?.includes(roomId)) {
+          this.pinnedRoomIds = this.pinnedRoomIds.filter((x) => x !== roomId);
+          this.persistPinnedRooms();
+        }
         // keep reactivity by replacing objects
         const { [roomId]: _m, ...restM } = this.messagesByRoom;
         this.messagesByRoom = restM;
@@ -577,6 +654,11 @@ export const useSessionStore = defineStore("session", {
             const next = [...list];
             next[idx] = m;
             this.messagesByRoom[m.roomId] = next;
+            const at = m?.createdAt;
+            if (at) {
+              this.rooms = this.rooms.map((r) => (r.id === m.roomId ? { ...r, lastMessageAt: at } : r));
+              this.applyRoomOrdering();
+            }
             return;
           }
         }
@@ -586,6 +668,11 @@ export const useSessionStore = defineStore("session", {
         const lastLooksLocal = !!last && typeof last.id === "string" && last.id.startsWith("local:") && last.senderType === "user";
         if (lastLooksLocal && last.content === m.content) this.messagesByRoom[m.roomId] = [...list.slice(0, -1), m];
         else this.messagesByRoom[m.roomId] = [...list, m];
+        const at = m?.createdAt;
+        if (at) {
+          this.rooms = this.rooms.map((r) => (r.id === m.roomId ? { ...r, lastMessageAt: at } : r));
+          this.applyRoomOrdering();
+        }
         return;
       }
 
@@ -624,6 +711,10 @@ export const useSessionStore = defineStore("session", {
       if (evt.type === "room.deleted") {
         const p = evt.payload as { roomId: string };
         this.rooms = this.rooms.filter((r) => r.id !== p.roomId);
+        if (this.pinnedRoomIds?.includes(p.roomId)) {
+          this.pinnedRoomIds = this.pinnedRoomIds.filter((x) => x !== p.roomId);
+          this.persistPinnedRooms();
+        }
         if (this.activeRoomId === p.roomId) {
           this.activeRoomId = "";
           // best-effort: open first remaining room

@@ -91,7 +91,7 @@ const windowStore = useWindowStore();
 
 const collapsedWidth = 44;
 const sidebarCollapsed = ref(false);
-const sidebarWidth = ref(360);
+const sidebarWidth = ref(250);
 const roomDrawerOpen = ref(false);
 const sidebarCollapsedSnapshot = ref<boolean | null>(null);
 

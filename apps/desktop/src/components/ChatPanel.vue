@@ -144,13 +144,16 @@
       </div>
     </div>
 
-    <div class="flex-1 min-h-0" :class="activePane === 'chat' && isTranslateOn ? 'overflow-hidden' : ''">
+    <div
+      class="flex-1 min-h-0 t-surface"
+      :class="activePane === 'chat' && isTranslateOn ? 'overflow-hidden' : ''"
+    >
       <template v-if="activePane === 'chat'">
         <template v-if="!isTranslateOn">
           <div
             ref="scroller"
-            class="h-full overflow-auto space-y-2 t-surface t-scrollbar"
-            :class="isMiniMode ? 'p-2' : 'p-3'"
+            class="h-full overflow-auto space-y-2 t-scrollbar"
+            :class="[isMiniMode ? 'p-2' : 'p-3', theme === 'dark' ? 'bg-zinc-900' : 'bg-gray-100']"
             :style="{ opacity: String(chatOpacity) }"
           >
           <div v-for="m in store.activeMessages" :key="m.id" class="w-full">

@@ -9,12 +9,28 @@ export async function roomRoutes(app: FastifyInstance) {
       include: {
         room: {
           include: {
-            _count: { select: { members: true } }
+            _count: { select: { members: true } },
+            messages: {
+              orderBy: { createdAt: "desc" },
+              take: 1,
+              select: { createdAt: true }
+            }
           }
         }
       }
     });
-    return memberships.map((m) => m.room);
+    // lastMessageAt = latest message in room (for list order & "2h ago" display)
+    return memberships.map((m) => {
+      const room = m.room as any;
+      const lastMsg = room.messages?.[0];
+      const lastMessageAt = lastMsg?.createdAt ?? room.createdAt;
+      const { messages, ...roomWithoutMessages } = room;
+      return {
+        ...roomWithoutMessages,
+        membersCount: room._count?.members ?? 0,
+        lastMessageAt: lastMessageAt instanceof Date ? lastMessageAt.toISOString() : lastMessageAt
+      };
+    });
   });
 
   app.get("/rooms/:roomId/members", { preHandler: app.authenticate }, async (req: any) => {

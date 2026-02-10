@@ -35,5 +35,8 @@ RUN npm run -w @jarvis/shared build
 RUN npx prisma generate --schema apps/server/prisma/schema.prisma
 RUN npm run -w @jarvis/server build
 
+# Entrypoint: run DB migrations then start server
+RUN chmod +x /app/apps/server/docker-entrypoint.sh
+
 EXPOSE 8080
-CMD ["node", "apps/server/dist/index.js"]
+ENTRYPOINT ["/app/apps/server/docker-entrypoint.sh"]

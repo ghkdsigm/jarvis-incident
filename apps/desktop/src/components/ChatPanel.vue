@@ -154,14 +154,14 @@
 
     <div
       class="flex-1 min-h-0 t-surface"
-      :class="activePane === 'chat' && isTranslateOn ? 'overflow-hidden' : ''"
+      :class="[activePane === 'chat' && isTranslateOn ? 'overflow-hidden' : '', theme === 'dark' ? 'bg-zinc-900' : 'bg-gray-100']"
     >
       <template v-if="activePane === 'chat'">
         <template v-if="!isTranslateOn">
           <div
             ref="scroller"
-            class="h-full overflow-auto space-y-2 t-scrollbar"
-            :class="[isMiniMode ? 'p-2' : 'py-6 px-6', theme === 'dark' ? 'bg-zinc-900' : 'bg-gray-100']"
+            class="h-full overflow-auto space-y-2 t-scrollbar max-w-[1100px] mx-auto"
+            :class="isMiniMode ? 'p-2' : 'py-6 px-6'"
             :style="{ opacity: String(chatOpacity) }"
           >
           <div

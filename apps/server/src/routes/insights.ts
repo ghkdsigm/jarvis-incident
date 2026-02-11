@@ -190,7 +190,10 @@ export async function insightsRoutes(app: FastifyInstance) {
 
     const weekStart = weekStartRaw ? toWeekStartUtc(weekStartRaw) : null;
     const where: any = { roomId };
-    if (weekStart) where.weekStart = weekStart;
+    // 해당 주의 주간 AI 카드 + weekStart 없는 수동 저장 카드 모두 그래프에 포함
+    if (weekStart) {
+      where.OR = [{ weekStart }, { weekStart: null }];
+    }
 
     const room = await prisma.room.findUnique({ where: { id: roomId } });
     const cards = await prisma.ideaCard.findMany({

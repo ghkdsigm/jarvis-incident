@@ -14,6 +14,50 @@ Teams보다 가볍게, “항상 위(Always-on-top)”로 떠있는 데스크톱
 - `apps/desktop`: Electron + Vue 3 + Vite + Tailwind (Always-on-top / Mini mode)
 - `packages/shared`: 공통 타입/스키마(zod) — 각 앱 `predev`에서 자동 빌드
 
+## 폴더 구조(요약) + 역할
+> 아래 트리는 **git에 추적되는 소스 기준**으로 정리했습니다. (`node_modules/`, `dist/` 같은 의존성/빌드 산출물은 제외)
+
+```text
+.
+├─ apps/
+│  ├─ server/                     # REST + WebSocket API 서버
+│  │  ├─ src/                     # 서버 소스(Fastify, WS hub, routes, plugins)
+│  │  ├─ prisma/                  # Prisma schema + migrations
+│  │  ├─ Dockerfile               # 서버 컨테이너 이미지 빌드
+│  │  └─ docker-entrypoint.sh     # 컨테이너 엔트리포인트
+│  ├─ worker/                     # AI 워커(BullMQ consumer)
+│  │  ├─ src/                     # 워커 소스(AI provider, Redis/DB 연결 등)
+│  │  └─ Dockerfile               # 워커 컨테이너 이미지 빌드
+│  └─ desktop/                    # Electron 데스크톱 앱(UI)
+│     ├─ electron/                # Electron main/preload 프로세스
+│     └─ src/                     # Vue UI, API/WS 클라이언트, 상태관리, 유틸
+├─ packages/
+│  └─ shared/                     # 공통 타입/유틸(앱들에서 공용 import)
+│     └─ src/
+├─ infra/                         # 로컬/배포용 인프라(docker compose, env)
+├─ docs/                          # 개발/배포 문서
+├─ package.json                   # npm workspaces + 루트 스크립트
+└─ README.md
+```
+
+### 디렉터리 역할 상세
+- **`apps/server`**: 메인 백엔드
+  - **REST API**: `apps/server/src/routes/*`
+  - **WebSocket 허브/브로드캐스트**: `apps/server/src/ws/hub.ts`
+  - **인증/토큰(JWT) 플러그인**: `apps/server/src/plugins/auth.ts`
+  - **DB(Prisma)**: `apps/server/prisma/schema.prisma` (+ `migrations/`)
+- **`apps/worker`**: AI/백그라운드 작업 처리
+  - **큐 컨슈머(BullMQ)**로 작업을 받아 처리하고, **Redis Pub/Sub** 등으로 이벤트를 퍼블리시
+  - **AI Provider 추상화**: `apps/worker/src/lib/aiProvider.ts`
+- **`apps/desktop`**: Always-on-top 데스크톱 클라이언트
+  - **Electron 메인/프리로드**: `apps/desktop/electron/*`
+  - **Vue 화면/컴포넌트**: `apps/desktop/src/components/*`
+  - **서버 통신(HTTP/WS)**: `apps/desktop/src/api/*`
+  - **상태관리**: `apps/desktop/src/stores/*`
+- **`packages/shared`**: 공통 코드(타입/스키마/유틸) 모음 — 여러 앱에서 동일하게 import
+- **`infra`**: Postgres/Redis 및(옵션) server/worker까지 포함한 docker compose 실행 스펙
+- **`docs`**: 로컬 개발/배포 관련 문서 (예: `docs/LOCAL_AND_DEPLOY.md`)
+
 ## 요구사항
 - Node.js (npm) 설치
 - Docker Desktop(또는 Docker Engine + Compose)

@@ -36,7 +36,6 @@ macOS/Linux:
 
 ```bash
 cd infra
-cp .env.example .env
 docker compose up -d postgres redis
 ```
 
@@ -48,7 +47,6 @@ macOS/Linux:
 
 ```bash
 cd apps/server
-cp .env.example .env
 npx prisma generate
 npx prisma migrate dev --name init
 npm run dev
@@ -65,7 +63,6 @@ macOS/Linux:
 
 ```bash
 cd apps/worker
-cp .env.example .env
 npm run dev
 ```
 
@@ -77,7 +74,6 @@ macOS/Linux:
 
 ```bash
 cd apps/desktop
-cp .env.example .env
 npm run dev
 ```
 

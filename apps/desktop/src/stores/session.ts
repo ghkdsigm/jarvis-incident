@@ -38,7 +38,11 @@ export const useSessionStore = defineStore("session", {
     screenShareRemote: null as MediaStream | null,
     screenShareRoomId: "" as string,
     rtcPc: null as RTCPeerConnection | null,
-    rtcPendingIce: [] as any[]
+    rtcPendingIce: [] as any[],
+
+    // 메시지 내용 검색 (좌측 방 목록 검색과 연동, 채팅 패널에서 하이라이트/이동용)
+    messageSearchQuery: "" as string,
+    messageSearchMatchCountByRoom: {} as Record<string, number>
   }),
   getters: {
     activeMessages(state): MessageDto[] {
@@ -102,6 +106,16 @@ export const useSessionStore = defineStore("session", {
       } catch {
         // ignore
       }
+    },
+
+    setMessageSearchResults(query: string, matchCountByRoom: Record<string, number>) {
+      this.messageSearchQuery = query;
+      this.messageSearchMatchCountByRoom = matchCountByRoom ?? {};
+    },
+
+    clearMessageSearch() {
+      this.messageSearchQuery = "";
+      this.messageSearchMatchCountByRoom = {};
     },
 
     async initAuth() {

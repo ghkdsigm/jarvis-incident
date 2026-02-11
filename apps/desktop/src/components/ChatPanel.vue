@@ -161,10 +161,45 @@
           <div
             ref="scroller"
             class="h-full overflow-auto space-y-2 t-scrollbar"
-            :class="[isMiniMode ? 'p-2' : 'p-3', theme === 'dark' ? 'bg-zinc-900' : 'bg-gray-100']"
+            :class="[isMiniMode ? 'p-2' : 'py-6 px-6', theme === 'dark' ? 'bg-zinc-900' : 'bg-gray-100']"
             :style="{ opacity: String(chatOpacity) }"
           >
-          <div v-for="m in store.activeMessages" :key="m.id" class="w-full" @contextmenu.prevent="onMessageContextMenu($event, m)">
+          <div
+            v-if="store.messageSearchQuery && messageSearchMatches.length"
+            class="sticky top-0 z-10 flex items-center justify-between gap-2 rounded-lg border t-border px-3 py-2 mb-2 text-sm t-surface"
+          >
+            <span class="t-text-subtle">"{{ store.messageSearchQuery }}" {{ messageSearchMatches.length }}개 일치</span>
+            <div class="flex items-center gap-1">
+              <button
+                type="button"
+                class="h-7 w-7 inline-flex items-center justify-center rounded t-btn-secondary"
+                title="이전 일치"
+                aria-label="이전 일치"
+                :disabled="messageSearchMatches.length === 0"
+                @click="scrollToSearchMatch(-1)"
+              >
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 15l-6-6-6 6"/></svg>
+              </button>
+              <span class="text-xs t-text-muted min-w-[2ch] text-center">{{ searchHighlightIndex + 1 }}/{{ messageSearchMatches.length }}</span>
+              <button
+                type="button"
+                class="h-7 w-7 inline-flex items-center justify-center rounded t-btn-secondary"
+                title="다음 일치"
+                aria-label="다음 일치"
+                :disabled="messageSearchMatches.length === 0"
+                @click="scrollToSearchMatch(1)"
+              >
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9l6 6 6-6"/></svg>
+              </button>
+            </div>
+          </div>
+          <div
+            v-for="m in store.activeMessages"
+            :key="m.id"
+            :ref="(el) => setMessageEl(m.id, el)"
+            class="w-full"
+            @contextmenu.prevent="onMessageContextMenu($event, m)"
+          >
             <div class="flex" :class="bubbleWrapClass(m)">
               <div class="max-w-[72%] min-w-0 flex flex-col" :class="bubbleColumnClass(m)">
                 <div class="text-[11px] t-text-subtle flex items-center gap-2 w-full" :class="metaClass(m)">
@@ -258,7 +293,7 @@
                 </div>
 
               <div
-                class="group mt-1 max-w-full rounded-2xl border px-3 py-2 text-sm whitespace-pre-wrap break-words"
+                class="group mt-1 max-w-full rounded-2xl border px-3 py-2 text-sm whitespace-pre-wrap break-words font-normal"
                 :class="[bubbleClass(m), editingId === m.id ? 'block w-full' : 'inline-block']"
               >
                 <template v-if="editingId === m.id">
@@ -282,13 +317,13 @@
                     <div class="italic t-text-muted">(삭제된 메시지)</div>
                   </template>
                   <template v-else>
-                    <div v-if="parsedFor(m).text">{{ parsedFor(m).text }}</div>
+                    <div v-if="parsedFor(m).text" v-html="highlightedMessageHtml(m)"></div>
 
                     <div v-if="parsedFor(m).attachments.length" class="mt-2 space-y-2">
                       <div
                         v-for="(a, idx) in parsedFor(m).attachments"
                         :key="idx"
-                        class="msg-attach rounded-lg border t-border bg-white/60 p-2"
+                        class="msg-attach rounded-lg"
                       >
                         <template v-if="a.kind === 'image'">
                           <a
@@ -299,10 +334,10 @@
                             class="block"
                             :title="a.name"
                           >
-                            <img :src="a.dataUrl" :alt="a.name" class="msg-attach-image rounded-md border t-border object-cover" />
+                            <img :src="a.dataUrl" :alt="a.name" class="msg-attach-image rounded-md object-cover" />
                           </a>
                           <div v-else class="text-xs t-text-subtle">이미지(미리보기 불가): {{ a.name }}</div>
-                          <div class="mt-1 text-[11px] t-text-muted truncate">{{ a.name }} · {{ formatBytes(a.size) }}</div>
+                          <div class="mt-1 text-[11px] truncate" :class="theme === 'dark' ? 'text-white' : 'text-gray-500'">{{ a.name }} · {{ formatBytes(a.size) }}</div>
                         </template>
                         <template v-else>
                           <div class="flex items-center gap-2 min-w-0">
@@ -347,7 +382,24 @@
             :style="{ opacity: String(chatOpacity) }"
             @scroll="onScrollLeft"
           >
-            <div v-for="m in store.activeMessages" :key="m.id" class="w-full" @contextmenu.prevent="onMessageContextMenu($event, m)">
+            <div
+              v-if="store.messageSearchQuery && messageSearchMatches.length"
+              class="sticky top-0 z-10 flex items-center justify-between gap-2 rounded-lg border t-border px-3 py-2 mb-2 text-sm t-surface"
+            >
+              <span class="t-text-subtle">"{{ store.messageSearchQuery }}" {{ messageSearchMatches.length }}개 일치</span>
+              <div class="flex items-center gap-1">
+                <button type="button" class="h-7 w-7 inline-flex items-center justify-center rounded t-btn-secondary" title="이전 일치" :disabled="messageSearchMatches.length === 0" @click="scrollToSearchMatch(-1)"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 15l-6-6-6 6"/></svg></button>
+                <span class="text-xs t-text-muted min-w-[2ch] text-center">{{ searchHighlightIndex + 1 }}/{{ messageSearchMatches.length }}</span>
+                <button type="button" class="h-7 w-7 inline-flex items-center justify-center rounded t-btn-secondary" title="다음 일치" :disabled="messageSearchMatches.length === 0" @click="scrollToSearchMatch(1)"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 9l6 6 6-6"/></svg></button>
+              </div>
+            </div>
+            <div
+              v-for="m in store.activeMessages"
+              :key="m.id"
+              :ref="(el) => setMessageEl(m.id, el)"
+              class="w-full"
+              @contextmenu.prevent="onMessageContextMenu($event, m)"
+            >
               <div class="flex" :class="bubbleWrapClass(m)">
                 <div class="max-w-[72%] min-w-0 flex flex-col" :class="bubbleColumnClass(m)">
                   <div class="text-[11px] t-text-subtle flex items-center gap-2 w-full" :class="metaClass(m)">
@@ -433,7 +485,7 @@
                         <div class="italic t-text-muted">(삭제된 메시지)</div>
                       </template>
                       <template v-else>
-                        <div v-if="parsedFor(m).text">{{ parsedFor(m).text }}</div>
+                        <div v-if="parsedFor(m).text" v-html="highlightedMessageHtml(m)"></div>
                         <div v-if="parsedFor(m).attachments.length" class="mt-2 space-y-2">
                           <div
                             v-for="(a, idx) in parsedFor(m).attachments"
@@ -1999,6 +2051,77 @@ function toggleInsightsPane() {
 function isMessageSavedAsCard(m: { id: string }) {
   return ideaCards.value.some((c) => c.sourceMessageId === m.id);
 }
+
+// 메시지 내용 검색: 하이라이트, 매치 목록, 이전/다음 이동
+const messageEls = ref<Record<string, HTMLElement>>({});
+const searchHighlightIndex = ref(0);
+
+const messageSearchMatches = computed(() => {
+  const q = (store.messageSearchQuery ?? "").trim().toLowerCase();
+  if (!q) return [];
+  const msgs = store.activeMessages;
+  return msgs.filter((m: any) => String(m?.content ?? "").toLowerCase().includes(q)).map((m: any) => m.id);
+});
+
+function setMessageEl(id: string, el: any) {
+  const target = Array.isArray(el) ? el[0] : el;
+  if (target && typeof target === "object" && target instanceof HTMLElement) messageEls.value[id] = target;
+}
+
+function escapeHtml(s: string): string {
+  return String(s)
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;");
+}
+
+function escapeRegex(s: string): string {
+  return String(s).replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+}
+
+function highlightedMessageHtml(m: any): string {
+  const text = String(parsedFor(m).text ?? "");
+  const q = (store.messageSearchQuery ?? "").trim();
+  if (!q) return escapeHtml(text);
+  try {
+    const re = new RegExp(escapeRegex(q).replace(/\s+/g, "\\s+"), "gi");
+    let result = "";
+    let lastIndex = 0;
+    let match: RegExpExecArray | null;
+    while ((match = re.exec(text)) !== null) {
+      result += escapeHtml(text.slice(lastIndex, match.index)) + '<mark class="bg-yellow-300 dark:bg-yellow-600/60 rounded px-0.5">' + escapeHtml(match[0]) + "</mark>";
+      lastIndex = match.index + match[0].length;
+    }
+    result += escapeHtml(text.slice(lastIndex));
+    return result;
+  } catch {
+    return escapeHtml(text);
+  }
+}
+
+function scrollToSearchMatch(direction: 1 | -1) {
+  const ids = messageSearchMatches.value;
+  if (!ids.length) return;
+  let next = searchHighlightIndex.value + direction;
+  if (next < 0) next = ids.length - 1;
+  if (next >= ids.length) next = 0;
+  searchHighlightIndex.value = next;
+  const id = ids[next];
+  const el = messageEls.value[id];
+  if (el) {
+    nextTick(() => el.scrollIntoView({ behavior: "smooth", block: "center" }));
+  }
+}
+
+watch(
+  [messageSearchMatches, () => store.messageSearchQuery],
+  () => {
+    const ids = messageSearchMatches.value;
+    if (ids.length && searchHighlightIndex.value >= ids.length) searchHighlightIndex.value = Math.max(0, ids.length - 1);
+  },
+  { flush: "post" }
+);
 
 async function saveMessageAsCard(m: any) {
   if (!store.token || !store.activeRoomId) return;

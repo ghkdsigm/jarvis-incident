@@ -23,7 +23,8 @@ function createWindow() {
       preload: path.join(__dirname, "preload.cjs"),
       contextIsolation: true,
       nodeIntegration: false
-    }
+    },
+    autoHideMenuBar: true
   });
 
   if (process.env.VITE_DEV_SERVER_URL) {

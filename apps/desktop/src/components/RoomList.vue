@@ -94,7 +94,10 @@
             >
               📌
             </span>
-            <div class="text-xs font-medium truncate min-w-0" :class="theme === 'dark' ? 'text-white' : 'text-black'">{{ r.title }}</div>
+            <div class="text-xs font-medium truncate min-w-0 flex items-center gap-1.5" :class="theme === 'dark' ? 'text-white' : 'text-black'">
+              <span class="truncate">{{ r.title }}</span>
+              <span v-if="roomSearch.trim() && matchedCountByRoom[r.id]" class="shrink-0 text-[10px] px-1.5 py-0.5 rounded bg-[#00694D]/15 text-[#00694D]" :title="`검색어 '${roomSearch.trim()}' ${matchedCountByRoom[r.id]}건`">{{ matchedCountByRoom[r.id] }}건</span>
+            </div>
           </div>
           <div class="shrink-0 relative" @mouseenter="openMemberPopover(r.id, $event)" @mouseleave="scheduleCloseMemberPopover">
             <div
@@ -242,6 +245,7 @@ const createRoomTitle = ref("");
 const roomSearch = ref("");
 const searching = ref(false);
 const matchedRoomIds = ref<string[] | null>(null);
+const matchedCountByRoom = ref<Record<string, number>>({});
 let searchSeq = 0;
 let debounceTimer: number | null = null;
 
@@ -387,24 +391,29 @@ async function openMemberPopover(roomId: string, e: MouseEvent) {
 function clearSearch() {
   roomSearch.value = "";
   matchedRoomIds.value = null;
+  matchedCountByRoom.value = {};
   searching.value = false;
   searchSeq += 1; // cancel in-flight
+  store.clearMessageSearch();
 }
 
 async function runSearch(query: string) {
   const q = query.trim().toLowerCase();
   if (!q) {
     matchedRoomIds.value = null;
+    matchedCountByRoom.value = {};
     searching.value = false;
+    store.clearMessageSearch();
     return;
   }
 
   const currentSeq = ++searchSeq;
   searching.value = true;
   matchedRoomIds.value = [];
+  matchedCountByRoom.value = {};
+  const countByRoom: Record<string, number> = {};
 
   const roomIds = store.rooms.map((r) => r.id);
-  const matched: string[] = [];
   let idx = 0;
   const workers = Array.from({ length: Math.min(4, roomIds.length || 1) }, async () => {
     while (idx < roomIds.length) {
@@ -414,8 +423,8 @@ async function runSearch(query: string) {
       try {
         const msgs = await store.ensureRoomMessages(rid, 200);
         if (currentSeq !== searchSeq) return;
-        const ok = msgs.some((m: any) => String(m?.content ?? "").toLowerCase().includes(q));
-        if (ok) matched.push(rid);
+        const count = msgs.filter((m: any) => String(m?.content ?? "").toLowerCase().includes(q)).length;
+        if (count > 0) countByRoom[rid] = count;
       } catch {
         // ignore individual room failures
       }
@@ -424,7 +433,9 @@ async function runSearch(query: string) {
 
   await Promise.all(workers);
   if (currentSeq !== searchSeq) return;
-  matchedRoomIds.value = matched;
+  matchedRoomIds.value = Object.keys(countByRoom);
+  matchedCountByRoom.value = countByRoom;
+  store.setMessageSearchResults(q, countByRoom);
   searching.value = false;
 }
 

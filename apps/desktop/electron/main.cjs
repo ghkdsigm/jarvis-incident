@@ -71,7 +71,8 @@ function createWindow() {
       preload: path.join(__dirname, "preload.cjs"),
       contextIsolation: true,
       nodeIntegration: false
-    }
+    },
+    autoHideMenuBar: true
   });
 
   // Dev에서는 Vite dev server를 로드합니다.

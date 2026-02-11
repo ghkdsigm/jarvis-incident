@@ -951,7 +951,7 @@
                   </ul>
                 </section>
               </div>
-              <div class="px-4 py-3 border-t t-border bg-[#f3f3f3] flex flex-wrap items-center justify-end gap-2">
+              <div class="px-4 py-3 border-t t-border flex flex-wrap items-center justify-end gap-2" :class="theme === 'dark' ? 'bg-[#252525]' : 'bg-[#f3f3f3]'">
                 <button
                   type="button"
                   class="px-3 py-1.5 text-xs rounded t-btn-secondary"
@@ -1004,9 +1004,47 @@
                   {{ t.label }}
                 </button>
               </div>
-              <div class="min-h-[320px] max-h-[60vh] overflow-auto rounded border t-border bg-[#FBFBFB] p-3 text-left">
+              <div class="min-h-[320px] max-h-[60vh] overflow-auto rounded border t-border bg-[#FBFBFB] p-3 text-left text-black">
                 <pre v-if="specPreviewTab === 'json'" class="text-xs whitespace-pre-wrap break-all">{{ specPreviewContent }}</pre>
                 <pre v-else class="text-xs whitespace-pre-wrap">{{ specPreviewContent }}</pre>
+              </div>
+
+              <!-- 프로젝트 자동 생성 (Claude Code) - Electron 전용 -->
+              <div v-if="isDesktop" class="border-t t-border pt-3 mt-3 space-y-2">
+                <h4 class="text-sm font-semibold t-text">프로젝트 자동 생성 (Claude Code)</h4>
+                <p class="text-xs t-text-subtle">
+                  Spec을 작업 디렉터리(~\/dw-brain/generated)에 저장한 뒤 Claude Code CLI로 프로젝트를 생성합니다.
+                </p>
+                <div v-if="!claudeCliChecked" class="text-xs t-text-subtle">Claude CLI 확인 중…</div>
+                <div v-else-if="!claudeCliAvailable" class="rounded border border-[#FB4F4F]/50 bg-[#FB4F4F]/10 px-3 py-2 text-xs text-[#FB4F4F]">
+                  <p class="font-medium">Claude Code CLI가 설치되어 있지 않습니다.</p>
+                  <p class="mt-1">설치: <a href="https://code.claude.com/docs/en/quickstart" target="_blank" rel="noopener" class="underline">Claude Code 설치 가이드</a>에서 CLI를 설치한 뒤 다시 시도하세요.</p>
+                </div>
+                <template v-else>
+                  <div class="flex flex-wrap gap-2">
+                    <button
+                      type="button"
+                      class="px-3 py-1.5 text-xs rounded t-btn-primary"
+                      :disabled="claudeCodeRunning"
+                      @click="runClaudeCodeProjectGenerate"
+                    >
+                      <span v-if="claudeCodeRunning">생성 중…</span>
+                      <span v-else>프로젝트 자동 생성(Claude Code)</span>
+                    </button>
+                  </div>
+                  <div v-if="claudeCodeRunning || claudeCodeLogs.length" class="rounded border t-border bg-[#0a0a0a] p-2 max-h-[200px] overflow-auto">
+                    <pre class="text-xs text-[#e0e0e0] whitespace-pre-wrap break-all font-mono">{{ claudeCodeLogs }}</pre>
+                  </div>
+                  <div v-if="claudeCodeError" class="text-xs text-[#FB4F4F]">{{ claudeCodeError }}</div>
+                  <div v-if="generatedProjectPath" class="rounded border t-border bg-[#FBFBFB] p-3 text-xs space-y-2">
+                    <p class="t-text font-medium">생성 완료</p>
+                    <p class="t-text-subtle break-all">{{ generatedProjectPath }}</p>
+                    <div class="flex gap-2">
+                      <button type="button" class="px-2.5 py-1.5 text-xs rounded t-btn-secondary" @click="openGeneratedFolder">폴더 열기</button>
+                      <button type="button" class="px-2.5 py-1.5 text-xs rounded t-btn-secondary" @click="openInVSCode">VSCode로 열기</button>
+                    </div>
+                  </div>
+                </template>
               </div>
             </div>
           </CommonModal>
@@ -1760,6 +1798,7 @@ import {
   fetchIdeaCards,
   fetchRoomGraph,
   generatePulseReport,
+  getPulseReport,
   generateWeeklyIdeaCards,
   type IdeaCardDto,
   type PulseReportDto,
@@ -1947,6 +1986,16 @@ const specPreviewContent = computed(() => {
 });
 const downloadZipLoading = ref(false);
 const isDesktop = typeof window !== "undefined" && !!(window as any).jarvisDesktop;
+
+// Claude Code project generation (Electron only)
+const claudeCliChecked = ref(false);
+const claudeCliAvailable = ref(false);
+const claudeCliVersion = ref<string | null>(null);
+const claudeCodeRunning = ref(false);
+const claudeCodeLogs = ref("");
+const claudeCodeError = ref("");
+const generatedProjectPath = ref("");
+let claudeCodeUnsub: (() => void)[] = [];
 const pulseSectionLabels: Record<keyof PulseReportDto["sections"], string> = {
   people: "사람",
   chat: "채팅",
@@ -2248,6 +2297,74 @@ async function downloadZip() {
   }
 }
 
+async function checkClaudeCliIfNeeded() {
+  if (!isDesktop || !(window as any).jarvisDesktop?.checkClaudeCli) return;
+  if (claudeCliChecked.value) return;
+  try {
+    const r = await (window as any).jarvisDesktop.checkClaudeCli();
+    claudeCliAvailable.value = r?.available === true;
+    claudeCliVersion.value = r?.version ?? null;
+  } finally {
+    claudeCliChecked.value = true;
+  }
+}
+
+function runClaudeCodeProjectGenerate() {
+  const r = specResult.value;
+  if (!r || !isDesktop) return;
+  const api = (window as any).jarvisDesktop;
+  if (!api?.runClaudeCodeProjectGenerate) return;
+
+  claudeCodeRunning.value = true;
+  claudeCodeLogs.value = "";
+  claudeCodeError.value = "";
+  generatedProjectPath.value = "";
+
+  const projectName = r.specPacket?.project?.name ?? "project";
+
+  claudeCodeUnsub = [
+    api.onClaudeCodeStdout((chunk: string) => {
+      claudeCodeLogs.value += chunk;
+    }),
+    api.onClaudeCodeStderr((chunk: string) => {
+      claudeCodeLogs.value += chunk;
+    }),
+    api.onClaudeCodeDone((data: { exitCode?: number; outPath?: string; error?: string }) => {
+      claudeCodeRunning.value = false;
+      claudeCodeUnsub.forEach((fn) => fn());
+      claudeCodeUnsub = [];
+      if (data?.outPath) generatedProjectPath.value = data.outPath;
+      if (data?.error) claudeCodeError.value = data.error;
+      if (data?.exitCode !== undefined && data.exitCode !== 0 && !data.error) {
+        claudeCodeError.value = `종료 코드: ${data.exitCode}`;
+      }
+    })
+  ];
+
+  api.runClaudeCodeProjectGenerate({
+    projectName,
+    specPacket: r.specPacket,
+    documents: r.documents
+  }).catch((err: any) => {
+    claudeCodeRunning.value = false;
+    claudeCodeUnsub.forEach((fn) => fn());
+    claudeCodeUnsub = [];
+    claudeCodeError.value = err?.message ?? "실행 실패";
+  });
+}
+
+function openGeneratedFolder() {
+  const p = generatedProjectPath.value;
+  if (!p || !isDesktop) return;
+  (window as any).jarvisDesktop?.openGeneratedFolder?.(p);
+}
+
+function openInVSCode() {
+  const p = generatedProjectPath.value;
+  if (!p || !isDesktop) return;
+  (window as any).jarvisDesktop?.openInVSCode?.(p);
+}
+
 watch(
   () => insightsTab.value,
   (t) => {
@@ -2262,6 +2379,9 @@ watch(
     pulseError.value = "";
     specResult.value = null;
     specModalOpen.value = false;
+    generatedProjectPath.value = "";
+    claudeCodeLogs.value = "";
+    claudeCodeError.value = "";
     insightsWeekStartIso.value = weekStartIsoUtcFor();
     if (activePane.value === "insights") {
       refreshInsights();
@@ -2271,6 +2391,10 @@ watch(
     }
   }
 );
+
+watch(specModalOpen, (open) => {
+  if (open && isDesktop) checkClaudeCliIfNeeded();
+});
 
 const EMOJIS = [
   "😀",

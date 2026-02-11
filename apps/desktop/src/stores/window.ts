@@ -6,6 +6,19 @@ declare global {
       getWindowState: () => Promise<{ alwaysOnTop: boolean; miniMode: boolean }>;
       toggleAlwaysOnTop: () => Promise<boolean>;
       toggleMiniMode: () => Promise<boolean>;
+      saveZip?: (arrayBuffer: ArrayBuffer) => Promise<{ canceled: boolean; filePath?: string }>;
+      getGeneratedBasePath?: () => Promise<string>;
+      checkClaudeCli?: () => Promise<{ available: boolean; version?: string | null; error?: string | null }>;
+      runClaudeCodeProjectGenerate?: (payload: {
+        projectName: string;
+        specPacket: unknown;
+        documents: Record<string, string>;
+      }) => Promise<{ success: boolean; exitCode?: number; outPath?: string; error?: string }>;
+      onClaudeCodeStdout?: (cb: (chunk: string) => void) => () => void;
+      onClaudeCodeStderr?: (cb: (chunk: string) => void) => () => void;
+      onClaudeCodeDone?: (cb: (data: { exitCode?: number; outPath?: string; error?: string }) => void) => () => void;
+      openGeneratedFolder?: (dirPath: string) => Promise<{ ok: boolean; error?: string }>;
+      openInVSCode?: (dirPath: string) => Promise<{ ok: boolean; error?: string }>;
     };
   }
 }

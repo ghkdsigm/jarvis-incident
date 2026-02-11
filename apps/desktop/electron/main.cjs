@@ -1,5 +1,6 @@
-const { app, BrowserWindow, ipcMain, globalShortcut } = require("electron");
+const { app, BrowserWindow, ipcMain, globalShortcut, dialog } = require("electron");
 const path = require("node:path");
+const fs = require("node:fs");
 const http = require("node:http");
 
 let mainWindow = null;
@@ -138,6 +139,18 @@ app.whenReady().then(() => {
     miniMode = !miniMode;
     applyMiniMode();
     return miniMode;
+  });
+
+  ipcMain.handle("saveZip", async (_event, arrayBuffer) => {
+    if (!mainWindow) return { canceled: true };
+    const { filePath, canceled } = await dialog.showSaveDialog(mainWindow, {
+      defaultPath: "pulse-spec.zip",
+      filters: [{ name: "ZIP", extensions: ["zip"] }]
+    });
+    if (canceled || !filePath) return { canceled: true };
+    const buffer = Buffer.from(arrayBuffer);
+    fs.writeFileSync(filePath, buffer);
+    return { canceled: false, filePath };
   });
 
   app.on("activate", () => {

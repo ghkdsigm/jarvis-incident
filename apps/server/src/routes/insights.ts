@@ -77,68 +77,86 @@ export async function insightsRoutes(app: FastifyInstance) {
 
   // Create card (manual). If sourceMessageId is provided, use that message content as default.
   app.post("/rooms/:roomId/cards", { preHandler: app.authenticate }, async (req: any, reply) => {
-    const roomId = req.params.roomId as string;
-    const userId = req.user.sub as string;
-    const body = (req.body ?? {}) as {
-      title?: string;
-      content?: IdeaCardContent;
-      graph?: IdeaCardGraph | null;
-      sourceMessageId?: string | null;
-    };
+    try {
+      const roomId = req.params.roomId as string;
+      const userId = req.user.sub as string;
+      const body = (req.body ?? {}) as {
+        title?: string;
+        content?: IdeaCardContent;
+        graph?: IdeaCardGraph | null;
+        sourceMessageId?: string | null;
+      };
 
-    const membership = await ensureMembership(userId, roomId);
-    if (!membership) return reply.code(403).send({ error: "FORBIDDEN" });
+      const membership = await ensureMembership(userId, roomId);
+      if (!membership) return reply.code(403).send({ error: "FORBIDDEN" });
 
-    let sourceMessageId = (body.sourceMessageId ?? null) as string | null;
-    let title = String(body.title ?? "").trim();
-    let content: IdeaCardContent = (body.content ?? {}) as any;
-    let graph: IdeaCardGraph | null = (body.graph ?? null) as any;
+      let sourceMessageId = (body.sourceMessageId ?? null) as string | null;
+      let title = String(body.title ?? "").trim();
+      let content: IdeaCardContent = (body.content ?? {}) as any;
+      let graph: IdeaCardGraph | null = (body.graph ?? null) as any;
 
-    if (sourceMessageId) {
-      const msg = await prisma.message.findUnique({ where: { id: sourceMessageId } });
-      if (!msg || msg.roomId !== roomId) return reply.code(400).send({ error: "BAD_SOURCE_MESSAGE" });
+      // Only resolve source message if id looks like a DB id (uuid), not a client stub (e.g. stream:xxx)
+      if (sourceMessageId && !sourceMessageId.startsWith("stream:")) {
+        const msg = await prisma.message.findUnique({ where: { id: sourceMessageId } });
+        if (!msg || msg.roomId !== roomId) return reply.code(400).send({ error: "BAD_SOURCE_MESSAGE" });
 
-      if (!title) title = shortTitleFromText(msg.content);
-      if (!content || Object.keys(content).length === 0) {
-        content = {
-          problem: String(msg.content ?? "").trim(),
-          proposal: "",
-          impact: "",
-          constraints: "",
-          owners: [],
-          evidence: [`message:${msg.id}`]
-        };
+        if (!title) title = shortTitleFromText(msg.content);
+        if (!content || Object.keys(content).length === 0) {
+          const problemRaw = String(msg.content ?? "").trim();
+          const problemMaxLen = 50_000;
+          content = {
+            problem: problemRaw.length > problemMaxLen ? problemRaw.slice(0, problemMaxLen) + "…" : problemRaw,
+            proposal: "",
+            impact: "",
+            constraints: "",
+            owners: [],
+            evidence: [`message:${msg.id}`]
+          };
+        }
+      } else if (sourceMessageId && sourceMessageId.startsWith("stream:")) {
+        // Client sent a streaming-stub id; treat as no source message
+        sourceMessageId = null;
       }
+
+      if (!title) title = "아이디어 카드";
+      if (!content) content = {};
+
+      // createdBy FK: only set if user exists (avoid 500 on stale token / deleted user)
+      let createdBy: string | null = userId;
+      const userExists = await prisma.user.findUnique({ where: { id: userId }, select: { id: true } });
+      if (!userExists) createdBy = null;
+
+      const created = await prisma.ideaCard.create({
+        data: {
+          roomId,
+          createdBy,
+          sourceMessageId,
+          kind: "manual",
+          title,
+          content: content as any,
+          graph: graph ?? undefined
+        }
+      });
+
+      return reply.send({
+        id: created.id,
+        roomId: created.roomId,
+        createdBy: created.createdBy ?? null,
+        sourceMessageId: created.sourceMessageId ?? null,
+        kind: created.kind,
+        weekStart: created.weekStart ? created.weekStart.toISOString() : null,
+        title: created.title,
+        content: created.content ?? {},
+        graph: created.graph ?? null,
+        createdAt: created.createdAt.toISOString(),
+        updatedAt: created.updatedAt.toISOString()
+      });
+    } catch (err: any) {
+      const message = err?.message ?? String(err);
+      req.log?.error?.(err, "Create card failed");
+      console.error("[POST /rooms/:roomId/cards] 500", message, err);
+      return reply.code(500).send({ error: "CREATE_CARD_FAILED", message });
     }
-
-    if (!title) title = "아이디어 카드";
-    if (!content) content = {};
-
-    const created = await prisma.ideaCard.create({
-      data: {
-        roomId,
-        createdBy: userId,
-        sourceMessageId,
-        kind: "manual",
-        title,
-        content: content as any,
-        graph: (graph ?? undefined) as any
-      }
-    });
-
-    return {
-      id: created.id,
-      roomId: created.roomId,
-      createdBy: created.createdBy ?? null,
-      sourceMessageId: created.sourceMessageId ?? null,
-      kind: created.kind,
-      weekStart: created.weekStart ? created.weekStart.toISOString() : null,
-      title: created.title,
-      content: created.content,
-      graph: created.graph ?? null,
-      createdAt: created.createdAt.toISOString(),
-      updatedAt: created.updatedAt.toISOString()
-    };
   });
 
   // Delete card (creator or room owner)
@@ -342,7 +360,7 @@ export async function insightsRoutes(app: FastifyInstance) {
     return reply.send({ ok: true, created: createdCount });
   });
 
-  // Brain Pulse 리포트: 카드+그래프+채팅 기반 1개 보고서 + AI 인텔리전스 제안
+  // Brain Pulse 리포트: 카드+그래프+채팅 기반 1개 보고서 + AI 인텔리전스 제안 (방당 1개 저장, 1주 자동 업데이트 전까지 유지)
   type PulseReportSections = {
     people?: string;
     chat?: string;
@@ -360,6 +378,22 @@ export async function insightsRoutes(app: FastifyInstance) {
     aiSuggestions: string[];
     generatedAt: string;
   };
+
+  /** 저장된 Brain Pulse 리포트 조회 (없으면 404) */
+  app.get("/rooms/:roomId/pulse-report", { preHandler: app.authenticate }, async (req: any, reply) => {
+    const roomId = req.params.roomId as string;
+    const userId = req.user.sub as string;
+    const membership = await ensureMembership(userId, roomId);
+    if (!membership) return reply.code(403).send({ error: "FORBIDDEN" });
+    const report = await prisma.pulseReport.findUnique({ where: { roomId } });
+    if (!report) return reply.code(404).send({ error: "NOT_FOUND" });
+    return reply.send({
+      summary: report.summary,
+      sections: report.sections as PulseReportSections,
+      aiSuggestions: (report.aiSuggestions as string[]) ?? [],
+      generatedAt: report.generatedAt.toISOString()
+    });
+  });
 
   app.post("/rooms/:roomId/pulse-report", { preHandler: app.authenticate }, async (req: any, reply) => {
     const roomId = req.params.roomId as string;
@@ -456,13 +490,26 @@ export async function insightsRoutes(app: FastifyInstance) {
     const summary = String(parsed?.summary ?? "").trim() || "요약 없음";
     const sections: PulseReportSections = (parsed?.sections && typeof parsed.sections === "object") ? parsed.sections : {};
     const aiSuggestions = Array.isArray(parsed?.aiSuggestions) ? parsed.aiSuggestions.map((s: any) => String(s)) : [];
+    const generatedAt = new Date();
 
     const payload: PulseReportPayload = {
       summary,
       sections,
       aiSuggestions,
-      generatedAt: new Date().toISOString()
+      generatedAt: generatedAt.toISOString()
     };
+
+    try {
+      await prisma.pulseReport.upsert({
+        where: { roomId },
+        create: { roomId, summary, sections, aiSuggestions, generatedAt },
+        update: { summary, sections, aiSuggestions, generatedAt }
+      });
+    } catch (err) {
+      req.log?.error?.(err, "PulseReport save failed (table may not exist yet); returning report anyway");
+      // DB 저장 실패해도 생성된 리포트는 반환 (마이그레이션 미적용 시에도 동작)
+    }
+
     return reply.send(payload);
   });
 }

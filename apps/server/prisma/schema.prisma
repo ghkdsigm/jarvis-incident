@@ -21,15 +21,27 @@ model User {
 }
 
 model Room {
-  id         String       @id @default(uuid())
-  type       String
-  title      String
-  createdBy  String
-  createdAt  DateTime     @default(now())
-  members    RoomMember[]
-  messages   Message[]
-  aiRequests AiRequest[]
-  ideaCards  IdeaCard[]
+  id          String       @id @default(uuid())
+  type        String
+  title       String
+  createdBy   String
+  createdAt   DateTime     @default(now())
+  members     RoomMember[]
+  messages    Message[]
+  aiRequests  AiRequest[]
+  ideaCards   IdeaCard[]
+  pulseReport PulseReport?
+}
+
+model PulseReport {
+  id           String   @id @default(uuid())
+  roomId       String   @unique
+  summary      String
+  sections     Json     // PulseReportSections
+  aiSuggestions Json    // string[]
+  generatedAt  DateTime
+
+  room Room @relation(fields: [roomId], references: [id], onDelete: Cascade)
 }
 
 model RoomMember {

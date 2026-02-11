@@ -120,7 +120,11 @@ export async function createIdeaCard(
     headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
     body: JSON.stringify(input)
   });
-  if (!res.ok) throw new Error(`Create card failed: ${res.status}`);
+  if (!res.ok) {
+    const body = await res.json().catch(() => ({})) as { message?: string };
+    const detail = body?.message ? `: ${body.message}` : "";
+    throw new Error(`Create card failed (${res.status})${detail}`);
+  }
   return await res.json();
 }
 
@@ -177,6 +181,22 @@ export type PulseReportDto = {
   aiSuggestions: string[];
   generatedAt: string;
 };
+
+/** 저장된 Brain Pulse 리포트 조회 (없으면 null) */
+export async function getPulseReport(
+  token: string,
+  roomId: string
+): Promise<PulseReportDto | null> {
+  const res = await fetch(`${API_BASE}/rooms/${roomId}/pulse-report`, {
+    headers: { Authorization: `Bearer ${token}` }
+  });
+  if (res.status === 404) return null;
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error((err as any).error ?? `Pulse report fetch failed: ${res.status}`);
+  }
+  return await res.json();
+}
 
 export async function generatePulseReport(
   token: string,

@@ -41,7 +41,7 @@ async function streamOpenAi(prompt: string, onChunk: StreamCb): Promise<string> 
       model: env.openAiModel,
       stream: true,
       messages: [
-        { role: "system", content: "You are Jarvis, a concise on-call assistant for software troubleshooting. Provide actionable steps." },
+        { role: "system", content: "You are Jarvis, a friendly assistant in this team chat. Answer naturally: greet back for greetings, answer briefly for simple questions, and give concise actionable steps only when the user asks for troubleshooting or technical help. Use Korean when the user writes in Korean." },
         { role: "user", content: prompt }
       ]
     })

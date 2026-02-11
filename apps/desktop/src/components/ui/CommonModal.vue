@@ -5,7 +5,7 @@
       <div class="absolute inset-0 flex items-center justify-center p-4" @keydown.esc="emitClose">
         <div
           ref="panel"
-          class="w-full max-w-xl rounded-lg border t-border t-surface shadow-2xl"
+          :class="['w-full rounded-lg border t-border t-surface shadow-2xl', props.panelClass || 'max-w-xl']"
           role="dialog"
           aria-modal="true"
           :aria-label="title || 'dialog'"
@@ -61,6 +61,8 @@ const props = withDefaults(
     open: boolean;
     title?: string;
     closeOnBackdrop?: boolean;
+    /** Optional extra class for the panel (e.g. max-w-4xl for wider modals) */
+    panelClass?: string;
   }>(),
   {
     closeOnBackdrop: true

@@ -1,3 +1,4 @@
+/// <reference types="vitest/config" />
 import { defineConfig } from "vite";
 import vue from "@vitejs/plugin-vue";
 import path from "node:path";
@@ -8,5 +9,9 @@ export default defineConfig({
     alias: {
       "@": path.resolve(__dirname, "src")
     }
+  },
+  test: {
+    include: ["src/**/*.test.ts", "src/**/*.spec.ts"],
+    environment: "node"
   }
 });

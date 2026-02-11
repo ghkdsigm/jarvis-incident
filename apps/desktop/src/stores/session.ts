@@ -654,6 +654,22 @@ export const useSessionStore = defineStore("session", {
         const m = evt.payload as MessageDto;
         const list = this.messagesByRoom[m.roomId] ?? [];
 
+        // bot.done: replace streaming stub so we don't show the same bot reply twice
+        if (evt.type === "bot.done") {
+          const last = list[list.length - 1];
+          const isStreamingStub = last && last.senderType === "bot" && typeof last.id === "string" && last.id.startsWith("stream:");
+          if (isStreamingStub) {
+            const next = [...list.slice(0, -1), m];
+            this.messagesByRoom[m.roomId] = next;
+            const at = m?.createdAt;
+            if (at) {
+              this.rooms = this.rooms.map((r) => (r.id === m.roomId ? { ...r, lastMessageAt: at } : r));
+              this.applyRoomOrdering();
+            }
+            return;
+          }
+        }
+
         // Prefer deterministic reconciliation when server echoes clientTempId
         const tempId = (m as any).clientTempId as string | undefined;
         if (tempId) {

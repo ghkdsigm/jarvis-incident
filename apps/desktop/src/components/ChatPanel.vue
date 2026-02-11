@@ -8,7 +8,7 @@
         </div>
         <div v-if="store.activeRoomId && !isMiniMode" class="flex items-center gap-2 shrink-0">
           <button
-            class="h-8 w-8 inline-flex items-center justify-center rounded"
+            class="h-8 w-16 inline-flex items-center justify-center rounded"
             :class="activePane === 'insights' ? 't-btn-primary' : 't-btn-secondary'"
             title="인사이트 (아이디어 카드/지식 그래프)"
             aria-label="인사이트 (아이디어 카드/지식 그래프)"
@@ -112,7 +112,7 @@
             title="참여했던 이전 채팅방의 최근 회의 내용을 요약해 이 방에 가져옵니다"
             @click="openPastMeetingImport"
           >
-            회의록 불러오기
+            채팅방 회의록 불러오기
           </button>
           <button
             class="px-2 py-1 text-xs rounded t-btn-secondary"
@@ -175,8 +175,9 @@
                   <button
                     type="button"
                     class="h-5 w-5 inline-flex items-center justify-center rounded t-btn-secondary shrink-0 bg-transparent border-0 disabled:opacity-40"
-                    title="아이디어 카드로 저장"
-                    aria-label="아이디어 카드로 저장"
+                    :class="isMessageSavedAsCard(m) ? 'text-[#FB4F4F]' : ''"
+                    :title="isMessageSavedAsCard(m) ? '아이디어 카드에 저장됨' : '아이디어 카드로 저장'"
+                    :aria-label="isMessageSavedAsCard(m) ? '아이디어 카드에 저장됨' : '아이디어 카드로 저장'"
                     :disabled="isDeleted(m)"
                     @pointerdown.stop
                     @click.stop="saveMessageAsCard(m)"
@@ -247,7 +248,7 @@
                       </button>
                       <button
                         type="button"
-                        class="w-full text-left px-2 py-1.5 text-xs rounded t-btn-danger bg-transparent border-0 hover:t-row"
+                        class="w-full text-left px-2 py-1.5 text-xs rounded t-btn-secondary bg-transparent border-0 hover:t-row"
                         @click="confirmDelete(m); closeMessageMenu()"
                       >
                         삭제
@@ -324,10 +325,10 @@
                       </div>
                     </div>
 
-                  <div v-if="canEditOrDelete(m)" class="mt-2 hidden group-hover:flex items-center justify-end gap-2">
+                  <!-- <div v-if="canEditOrDelete(m)" class="mt-2 hidden group-hover:flex items-center justify-end gap-2">
                     <button class="px-2 py-1 text-xs rounded t-btn-secondary" @click="startEdit(m)">수정</button>
                     <button class="px-2 py-1 text-xs rounded t-btn-danger" @click="confirmDelete(m)">삭제</button>
-                  </div>
+                  </div> -->
                   </template>
                 </template>
               </div>
@@ -357,8 +358,9 @@
                     <button
                       type="button"
                       class="ml-auto h-5 w-5 inline-flex items-center justify-center rounded t-btn-secondary shrink-0 bg-transparent border-0 disabled:opacity-40"
-                      title="아이디어 카드로 저장"
-                      aria-label="아이디어 카드로 저장"
+                      :class="isMessageSavedAsCard(m) ? 'text-[#FB4F4F]' : ''"
+                      :title="isMessageSavedAsCard(m) ? '아이디어 카드에 저장됨' : '아이디어 카드로 저장'"
+                      :aria-label="isMessageSavedAsCard(m) ? '아이디어 카드에 저장됨' : '아이디어 카드로 저장'"
                       :disabled="isDeleted(m)"
                       @pointerdown.stop
                       @click.stop="saveMessageAsCard(m)"
@@ -711,16 +713,16 @@
             <div v-else-if="!ideaCards.length" class="text-xs t-text-subtle">
               아직 저장된 카드가 없습니다. 메시지 옆의 북마크 아이콘으로 저장해보세요.
             </div>
-            <div v-else class="columns-1 md:columns-2 xl:columns-3 gap-3 [column-fill:_balance]">
+            <div v-else class="flex flex-wrap gap-3">
               <div
                 v-for="c in ideaCards"
                 :key="c.id"
-                class="mb-3 break-inside-avoid rounded border t-border t-surface shadow-sm p-3"
+                class="w-full min-w-[280px] max-w-[380px] flex-[1_1_280px] rounded-lg border t-border t-surface shadow-sm p-3"
               >
                 <div class="flex items-start gap-2">
                   <div class="min-w-0">
-                    <div class="text-sm font-semibold truncate">{{ c.title }}</div>
-                    <div class="mt-0.5 text-[11px] t-text-subtle flex items-center gap-2">
+                    <div class="text-sm font-bold truncate" :class="theme === 'dark' ? 'text-white' : 'text-black'">{{ c.title }}</div>
+                    <div class="mt-0.5 text-[9px] t-text-subtle flex items-center gap-2">
                       <span class="tabular-nums">{{ formatChatTime(c.createdAt) }}</span>
                       <span v-if="c.kind === 'weekly_ai'" class="px-1.5 py-0.5 rounded bg-[#C2D6BE] text-[#0C3A27]">
                         AI(주간)
@@ -734,34 +736,34 @@
                     aria-label="카드 삭제"
                     @click="removeCard(c.id)"
                   >
-                    <span class="text-sm leading-none">×</span>
+                    <span class="text-sm leading-none" :class="theme === 'dark' ? 'text-white' : 'text-black'">×</span>
                   </button>
                 </div>
 
                 <div class="mt-2 space-y-2 text-xs">
                   <div v-if="c.content?.problem">
-                    <div class="font-semibold t-text">Problem</div>
-                    <div class="t-text-subtle whitespace-pre-wrap break-words">{{ c.content.problem }}</div>
+                    <div class="font-bold" :class="theme === 'dark' ? 'text-[#00ad50]' : 'text-[#4fd1c5]'">Problem</div>
+                    <div class="t-text whitespace-pre-wrap break-words font-normal">{{ c.content.problem }}</div>
                   </div>
                   <div v-if="c.content?.proposal">
-                    <div class="font-semibold t-text">Proposal</div>
-                    <div class="t-text-subtle whitespace-pre-wrap break-words">{{ c.content.proposal }}</div>
+                    <div class="font-bold" :class="theme === 'dark' ? 'text-[#00ad50]' : 'text-[#4fd1c5]'">Proposal</div>
+                    <div class="t-text whitespace-pre-wrap break-words font-normal">{{ c.content.proposal }}</div>
                   </div>
                   <div v-if="c.content?.impact">
-                    <div class="font-semibold t-text">Impact</div>
-                    <div class="t-text-subtle whitespace-pre-wrap break-words">{{ c.content.impact }}</div>
+                    <div class="font-bold" :class="theme === 'dark' ? 'text-[#00ad50]' : 'text-[#4fd1c5]'">Impact</div>
+                    <div class="t-text whitespace-pre-wrap break-words font-normal">{{ c.content.impact }}</div>
                   </div>
                   <div v-if="c.content?.constraints">
-                    <div class="font-semibold t-text">Constraints</div>
-                    <div class="t-text-subtle whitespace-pre-wrap break-words">{{ c.content.constraints }}</div>
+                    <div class="font-bold" :class="theme === 'dark' ? 'text-[#00ad50]' : 'text-[#4fd1c5]'">Constraints</div>
+                    <div class="t-text whitespace-pre-wrap break-words font-normal">{{ c.content.constraints }}</div>
                   </div>
                   <div v-if="Array.isArray(c.content?.owners) && c.content.owners.length">
-                    <div class="font-semibold t-text">Owner 후보</div>
-                    <div class="t-text-subtle">{{ c.content.owners.join(", ") }}</div>
+                    <div class="font-bold" :class="theme === 'dark' ? 'text-[#00ad50]' : 'text-[#4fd1c5]'">Owner 후보</div>
+                    <div class="t-text font-normal">{{ c.content.owners.join(", ") }}</div>
                   </div>
                   <div v-if="Array.isArray(c.content?.evidence) && c.content.evidence.length">
-                    <div class="font-semibold t-text">Evidence</div>
-                    <ul class="t-text-subtle space-y-1">
+                    <div class="font-bold" :class="theme === 'dark' ? 'text-[#00ad50]' : 'text-[#4fd1c5]'">Evidence</div>
+                    <ul class="t-text space-y-1 font-normal">
                       <li v-for="(e, idx) in c.content.evidence" :key="idx" class="break-words">
                         {{ e }}
                       </li>
@@ -782,7 +784,7 @@
               v-else
               :width="graphSvgSize"
               :height="graphSvgSize"
-              class="w-full max-w-[780px] mx-auto rounded border t-border bg-white"
+              class="w-full max-w-[1500px] mx-auto rounded border t-border"
               viewBox="0 0 560 560"
             >
               <g>
@@ -793,7 +795,7 @@
                   :y1="nodePos(e.source).y"
                   :x2="nodePos(e.target).x"
                   :y2="nodePos(e.target).y"
-                  stroke="#E0E0E0"
+                  :stroke="theme === 'dark' ? '#555' : '#E0E0E0'"
                   stroke-width="1.2"
                 />
               </g>
@@ -803,19 +805,22 @@
                     :cx="nodePos(n.id).x"
                     :cy="nodePos(n.id).y"
                     :r="n.type === 'room' ? 26 : n.type === 'card' ? 16 : 12"
-                    :fill="n.type === 'room' ? '#00694D' : n.type === 'card' ? '#C2D6BE' : '#FBFBFB'"
+                    :fill="n.type === 'room' ? '#00694D' : n.type === 'card' ? '#C2D6BE' : (theme === 'dark' ? '#000000' : '#FFFFFF')"
                     :stroke="n.type === 'room' ? '#00694D' : '#B7B7B7'"
                     stroke-width="1.2"
                   />
                   <text
                     :x="nodePos(n.id).x"
-                    :y="nodePos(n.id).y + (n.type === 'room' ? 5 : 4)"
+                    :y="nodePos(n.id).y + (n.type === 'room' ? 5 : 30)"
                     text-anchor="middle"
-                    :fill="n.type === 'room' ? '#FFFFFF' : '#262626'"
-                    font-size="11"
+                    fill="currentColor"
+                    :class="n.type === 'room' ? 'text-white' : (theme === 'dark' ? 'text-yellow-500' : 'text-black')"
+                    font-size="12"
                     font-family="Pretendard, Noto Sans, Arial"
+                    :title="n.label"
                   >
-                    {{ n.label.length > 10 ? n.label.slice(0, 10) + "…" : n.label }}
+                    <!-- {{ n.label.length > 10 ? n.label.slice(0, 10) + "…" : n.label }} -->
+                    {{ n.label.length > 20 ? n.label.slice(0, 10) + "…" : n.label }}  
                   </text>
                 </g>
               </g>
@@ -862,7 +867,10 @@
               </button>
             </div>
             <div v-else class="rounded border t-border t-surface overflow-hidden">
-              <div class="px-4 py-3 border-b t-border bg-[#FBFBFB]">
+              <div
+                class="px-4 py-3 border-b t-border"
+                :class="theme === 'dark' ? 'bg-[#252525]' : 'bg-[#f3f3f3]'"
+              >
                 <h3 class="text-base font-bold t-text">Brain Pulse 리포트</h3>
                 <p class="text-xs t-text-subtle mt-0.5">{{ formatPulseGeneratedAt(pulseReport.generatedAt) }}</p>
               </div>
@@ -891,7 +899,7 @@
                   </ul>
                 </section>
               </div>
-              <div class="px-4 py-2 border-t t-border bg-[#FBFBFB] flex justify-end">
+              <div class="px-4 py-3 border-t t-border bg-[#f3f3f3] flex flex-wrap items-center justify-end gap-2">
                 <button
                   type="button"
                   class="px-3 py-1.5 text-xs rounded t-btn-secondary"
@@ -900,9 +908,56 @@
                 >
                   {{ pulseLoading ? "생성 중…" : "다시 생성" }}
                 </button>
+                <button
+                  type="button"
+                  class="px-3 py-1.5 text-xs rounded t-btn-primary"
+                  :disabled="pulseLoading"
+                  @click="generateSpecPacketAndDocs"
+                >
+                  Spec Packet(JSON) + 문서(MD)로 받기
+                </button>
+                <button
+                  type="button"
+                  class="px-3 py-1.5 text-xs rounded t-btn-secondary"
+                  :disabled="!specResult || downloadZipLoading"
+                  @click="downloadZip"
+                >
+                  {{ downloadZipLoading ? "다운로드 중…" : "다운로드(.zip)" }}
+                </button>
               </div>
             </div>
           </div>
+
+          <!-- Spec Packet + 문서 미리보기 모달 -->
+          <CommonModal
+            :open="specModalOpen"
+            title="Spec Packet & 문서 미리보기"
+            panel-class="max-w-4xl"
+            @close="specModalOpen = false"
+          >
+            <div v-if="specResult" class="space-y-3">
+              <div v-if="!specValidation.valid" class="flex items-center gap-2 rounded border border-[#FB4F4F] bg-[#FB4F4F]/10 px-3 py-2 text-sm text-[#FB4F4F]">
+                <span class="font-semibold">스키마 경고:</span>
+                <span>필수 키 누락: {{ specValidation.missingKeys.join(", ") }}</span>
+              </div>
+              <div class="flex flex-wrap gap-1 border-b t-border pb-2">
+                <button
+                  v-for="t in specPreviewTabs"
+                  :key="t.id"
+                  type="button"
+                  class="px-2.5 py-1.5 text-xs rounded"
+                  :class="specPreviewTab === t.id ? 't-btn-primary' : 't-btn-secondary'"
+                  @click="specPreviewTab = t.id"
+                >
+                  {{ t.label }}
+                </button>
+              </div>
+              <div class="min-h-[320px] max-h-[60vh] overflow-auto rounded border t-border bg-[#FBFBFB] p-3 text-left">
+                <pre v-if="specPreviewTab === 'json'" class="text-xs whitespace-pre-wrap break-all">{{ specPreviewContent }}</pre>
+                <pre v-else class="text-xs whitespace-pre-wrap">{{ specPreviewContent }}</pre>
+              </div>
+            </div>
+          </CommonModal>
         </div>
       </template>
     </div>
@@ -1660,6 +1715,8 @@ import {
   importMeetingSummary,
   translateText
 } from "../api/http";
+import JSZip from "jszip";
+import { pulseReportToSpecResult, validateSpecPacket, type SpecPacketResult } from "../utils/pulseToSpec";
 import CommonModal from "./ui/CommonModal.vue";
 
 const store = useSessionStore();
@@ -1805,6 +1862,7 @@ type InsightsTab = "cards" | "graph" | "pulse";
 const activePane = ref<"chat" | "insights">("chat");
 const insightsTab = ref<InsightsTab>("cards");
 const ideaCards = ref<IdeaCardDto[]>([]);
+const ideaCardSaveNotification = ref<string | null>(null);
 const cardsLoading = ref(false);
 const cardsError = ref<string>("");
 const graphLoading = ref(false);
@@ -1815,6 +1873,28 @@ const graphSvgSize = 560;
 const pulseReport = ref<PulseReportDto | null>(null);
 const pulseLoading = ref(false);
 const pulseError = ref<string>("");
+const specResult = ref<SpecPacketResult | null>(null);
+const specModalOpen = ref(false);
+const specPreviewTab = ref<string>("json");
+const specPreviewTabs = [
+  { id: "json", label: "JSON" },
+  { id: "PRD", label: "PRD" },
+  { id: "UX_FLOW", label: "UX" },
+  { id: "API_SPEC", label: "API" },
+  { id: "DB_SCHEMA", label: "DB" },
+  { id: "DECISIONS", label: "Decisions" }
+];
+const specValidation = computed(() =>
+  specResult.value ? validateSpecPacket(specResult.value.specPacket) : { valid: true, missingKeys: [] }
+);
+const specPreviewContent = computed(() => {
+  const r = specResult.value;
+  if (!r) return "";
+  if (specPreviewTab.value === "json") return JSON.stringify(r.specPacket, null, 2);
+  return r.documents[specPreviewTab.value as keyof typeof r.documents] ?? "";
+});
+const downloadZipLoading = ref(false);
+const isDesktop = typeof window !== "undefined" && !!(window as any).jarvisDesktop;
 const pulseSectionLabels: Record<keyof PulseReportDto["sections"], string> = {
   people: "사람",
   chat: "채팅",
@@ -1895,8 +1975,20 @@ async function loadGraph() {
   }
 }
 
+async function loadPulseReport() {
+  if (!store.token || !store.activeRoomId) return;
+  pulseError.value = "";
+  try {
+    const report = await getPulseReport(store.token, store.activeRoomId);
+    pulseReport.value = report;
+  } catch (e: any) {
+    pulseError.value = e?.message ?? "리포트 로드 실패";
+    pulseReport.value = null;
+  }
+}
+
 async function refreshInsights() {
-  await Promise.all([loadIdeaCards(), loadGraph()]);
+  await Promise.all([loadIdeaCards(), loadGraph(), loadPulseReport()]);
 }
 
 function toggleInsightsPane() {
@@ -1904,22 +1996,37 @@ function toggleInsightsPane() {
   if (activePane.value === "insights") refreshInsights();
 }
 
+function isMessageSavedAsCard(m: { id: string }) {
+  return ideaCards.value.some((c) => c.sourceMessageId === m.id);
+}
+
 async function saveMessageAsCard(m: any) {
   if (!store.token || !store.activeRoomId) return;
+  const existing = ideaCards.value.find((c) => c.sourceMessageId === m.id);
   try {
-    const created = await createIdeaCard(store.token, store.activeRoomId, { sourceMessageId: m.id });
-    // Keep list fresh if user is in insights
-    if (activePane.value === "insights") {
+    if (existing) {
+      await deleteIdeaCard(store.token, store.activeRoomId, existing.id);
+      ideaCards.value = ideaCards.value.filter((c) => c.id !== existing.id);
+      if (insightsTab.value === "graph") loadGraph();
+      ideaCardSaveNotification.value = "아이디어 카드에서 제거되었습니다";
+    } else {
+      const created = await createIdeaCard(store.token, store.activeRoomId, { sourceMessageId: m.id });
       ideaCards.value = [created, ...ideaCards.value.filter((c) => c.id !== created.id)];
+      ideaCardSaveNotification.value = "아이디어 카드에 저장되었습니다";
     }
+    const t = setTimeout(() => {
+      ideaCardSaveNotification.value = null;
+      clearTimeout(t);
+    }, 2500);
   } catch (e: any) {
-    // best-effort: surface as system message
     store.pushLocal(store.activeRoomId, {
       id: `sys:${Date.now()}`,
       roomId: store.activeRoomId,
       senderType: "system",
       senderUserId: null,
-      content: `에러: 카드 저장 실패 (${e?.message ?? "UNKNOWN"})`,
+      content: existing
+        ? `에러: 카드 제거 실패 (${e?.message ?? "UNKNOWN"})`
+        : `에러: 카드 저장 실패 (${e?.message ?? "UNKNOWN"})`,
       createdAt: new Date().toISOString()
     } as any);
   }
@@ -1980,6 +2087,44 @@ function formatPulseGeneratedAt(iso: string) {
   }
 }
 
+function generateSpecPacketAndDocs() {
+  if (!pulseReport.value) return;
+  specResult.value = pulseReportToSpecResult(pulseReport.value);
+  specPreviewTab.value = "json";
+  specModalOpen.value = true;
+}
+
+async function downloadZip() {
+  const r = specResult.value;
+  if (!r) return;
+  downloadZipLoading.value = true;
+  try {
+    const zip = new JSZip();
+    zip.file("specPacket.json", JSON.stringify(r.specPacket, null, 2));
+    zip.file("PRD.md", r.documents.PRD);
+    zip.file("UX_FLOW.md", r.documents.UX_FLOW);
+    zip.file("API_SPEC.md", r.documents.API_SPEC);
+    zip.file("DB_SCHEMA.md", r.documents.DB_SCHEMA);
+    zip.file("DECISIONS.md", r.documents.DECISIONS);
+    const blob = await zip.generateAsync({ type: "blob" });
+    const arrayBuffer = await blob.arrayBuffer();
+
+    if (isDesktop && (window as any).jarvisDesktop?.saveZip) {
+      const result = await (window as any).jarvisDesktop.saveZip(arrayBuffer);
+      if (result?.canceled) return;
+    } else {
+      const url = URL.createObjectURL(new Blob([arrayBuffer], { type: "application/zip" }));
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = "pulse-spec.zip";
+      a.click();
+      URL.revokeObjectURL(url);
+    }
+  } finally {
+    downloadZipLoading.value = false;
+  }
+}
+
 watch(
   () => insightsTab.value,
   (t) => {
@@ -1992,9 +2137,14 @@ watch(
   () => {
     pulseReport.value = null;
     pulseError.value = "";
+    specResult.value = null;
+    specModalOpen.value = false;
+    insightsWeekStartIso.value = weekStartIsoUtcFor();
     if (activePane.value === "insights") {
-      insightsWeekStartIso.value = weekStartIsoUtcFor();
       refreshInsights();
+    } else {
+      // 새로고침 후 인사이트 열기 전에도 저장된 pulse 리포트 미리 로드 (같은 방이면 나중에 탭 전환 시 바로 표시)
+      loadPulseReport();
     }
   }
 );

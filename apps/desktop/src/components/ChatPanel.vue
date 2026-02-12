@@ -154,13 +154,46 @@
         class="grid grid-cols-2 gap-2"
       >
         <div class="space-y-1">
-          <div class="text-[11px] t-text-subtle">상대 화면</div>
-          <video
-            ref="remoteVideo"
-            class="w-full h-40 bg-black rounded border t-border object-contain"
-            autoplay
-            playsinline
-          />
+          <div class="text-[11px] t-text-subtle flex items-center justify-between gap-1">
+            <span>상대 화면</span>
+            <span
+              v-if="canOpenScreenSharePopup && store.screenShareRemote"
+              class="text-[10px] t-text-muted cursor-pointer hover:underline"
+              @click="openScreenSharePopup"
+            >
+              새 창으로 보기
+            </span>
+          </div>
+          <div
+            v-if="store.screenShareRemote"
+            class="relative cursor-pointer rounded border t-border overflow-hidden bg-black group"
+            role="button"
+            tabindex="0"
+            @click="openScreenSharePopup"
+            @keydown.enter="openScreenSharePopup"
+            @keydown.space.prevent="openScreenSharePopup"
+          >
+            <video
+              ref="remoteVideo"
+              class="w-full h-40 object-contain"
+              autoplay
+              playsinline
+            />
+            <div
+              v-if="canOpenScreenSharePopup"
+              class="absolute inset-0 flex items-center justify-center bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none text-white text-xs"
+            >
+              클릭하면 새 창으로 크게 보기
+            </div>
+          </div>
+          <template v-else>
+            <video
+              ref="remoteVideo"
+              class="w-full h-40 bg-black rounded border t-border object-contain"
+              autoplay
+              playsinline
+            />
+          </template>
         </div>
         <div class="space-y-1">
           <div class="text-[11px] t-text-subtle">내 화면(프리뷰)</div>
@@ -2955,6 +2988,87 @@ function toggleTranslate() {
 const remoteVideo = ref<HTMLVideoElement | null>(null);
 const localVideo = ref<HTMLVideoElement | null>(null);
 
+const canOpenScreenSharePopup = ref(false);
+let popupPc: RTCPeerConnection | null = null;
+const popupPendingIce: RTCIceCandidate[] = [];
+let unregisterPopupReady: (() => void) | null = null;
+let unregisterPopupAnswer: (() => void) | null = null;
+let unregisterPopupIce: (() => void) | null = null;
+
+function openScreenSharePopup() {
+  const jd = (window as unknown as { jarvisDesktop?: { openScreenSharePopup?: () => Promise<unknown> } }).jarvisDesktop;
+  if (!jd?.openScreenSharePopup || !store.screenShareRemote) return;
+  jd.openScreenSharePopup();
+}
+
+function setupScreenSharePopupListeners() {
+  const jd = (window as unknown as {
+    jarvisDesktop?: {
+      onScreenSharePopupReady: (cb: () => void) => () => void;
+      sendScreenShareOffer: (sdp: RTCSessionDescriptionInit) => Promise<unknown>;
+      onScreenShareAnswer: (cb: (sdp: RTCSessionDescriptionInit) => void) => () => void;
+      sendScreenShareIce: (candidate: RTCIceCandidateInit) => Promise<unknown>;
+      onScreenShareIce: (cb: (candidate: RTCIceCandidateInit) => void) => () => void;
+    };
+  }).jarvisDesktop;
+  if (!jd) return;
+
+  unregisterPopupReady = jd.onScreenSharePopupReady(() => {
+    const stream = store.screenShareRemote;
+    if (!stream || !jd) return;
+    try {
+      if (popupPc) {
+        popupPc.close();
+        popupPc = null;
+      }
+      popupPendingIce.length = 0;
+      const pc = new RTCPeerConnection({
+        iceServers: [{ urls: "stun:stun.l.google.com:19302" }]
+      });
+      for (const track of stream.getTracks()) {
+        pc.addTrack(track, stream);
+      }
+      pc.onicecandidate = (e) => {
+        if (e.candidate) jd.sendScreenShareIce(e.candidate);
+      };
+      pc.createOffer().then((offer) => {
+        return pc.setLocalDescription(offer);
+      }).then(() => {
+        jd.sendScreenShareOffer(pc.localDescription!);
+      }).catch(() => {
+        pc.close();
+      });
+      popupPc = pc;
+    } catch {
+      if (popupPc) popupPc.close();
+      popupPc = null;
+    }
+  });
+
+  unregisterPopupAnswer = jd.onScreenShareAnswer(async (sdp) => {
+    if (!popupPc) return;
+    try {
+      await popupPc.setRemoteDescription(new RTCSessionDescription(sdp));
+      for (const c of popupPendingIce) {
+        await popupPc.addIceCandidate(c).catch(() => {});
+      }
+      popupPendingIce.length = 0;
+    } catch {
+      // ignore
+    }
+  });
+
+  unregisterPopupIce = jd.onScreenShareIce((candidate) => {
+    if (!popupPc) return;
+    const c = new RTCIceCandidate(candidate);
+    if (!popupPc.remoteDescription) {
+      popupPendingIce.push(c);
+      return;
+    }
+    popupPc.addIceCandidate(c).catch(() => {});
+  });
+}
+
 const DELETED_PLACEHOLDER = "(삭제된 메시지)";
 const LS_CHAT_OPACITY = "jarvis.desktop.chatOpacity";
 
@@ -3409,12 +3523,21 @@ onMounted(() => {
     theme.value = getActiveTheme();
   });
   themeObserver.observe(document.documentElement, { attributes: true, attributeFilter: ["data-theme"] });
+  canOpenScreenSharePopup.value = !!(window as unknown as { jarvisDesktop?: { openScreenSharePopup?: unknown } }).jarvisDesktop?.openScreenSharePopup;
+  setupScreenSharePopupListeners();
 });
 
 onBeforeUnmount(() => {
   document.removeEventListener("pointerdown", onDocPointerDown);
   document.removeEventListener("keydown", onDocKeyDown);
   clearAttachments();
+  unregisterPopupReady?.();
+  unregisterPopupAnswer?.();
+  unregisterPopupIce?.();
+  if (popupPc) {
+    popupPc.close();
+    popupPc = null;
+  }
   themeObserver?.disconnect();
   themeObserver = null;
 });
@@ -4053,6 +4176,17 @@ watch(
     const local = store.screenShareRoomId === store.activeRoomId ? store.screenShareLocal : null;
     if (remoteVideo.value) (remoteVideo.value as any).srcObject = remote ?? null;
     if (localVideo.value) (localVideo.value as any).srcObject = local ?? null;
+  }
+);
+
+watch(
+  () => store.screenShareRemote,
+  (stream) => {
+    if (!stream && popupPc) {
+      popupPc.close();
+      popupPc = null;
+      popupPendingIce.length = 0;
+    }
   }
 );
 </script>

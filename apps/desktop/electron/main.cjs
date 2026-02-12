@@ -77,6 +77,7 @@ function buildPromptMd(projectName) {
 let mainWindow = null;
 let alwaysOnTop = true;
 let miniMode = false;
+let screenSharePopupWindow = null;
 
 function probeHttp(url) {
   return new Promise((resolve) => {
@@ -167,6 +168,33 @@ function createWindow() {
   mainWindow.on("closed", () => {
     mainWindow = null;
   });
+}
+
+function createScreenSharePopupWindow() {
+  if (screenSharePopupWindow && !screenSharePopupWindow.isDestroyed()) {
+    screenSharePopupWindow.focus();
+    return screenSharePopupWindow;
+  }
+  const popupPath = path.join(__dirname, "screen-share-popup.html");
+  const preloadPath = path.join(__dirname, "screen-share-popup-preload.cjs");
+  screenSharePopupWindow = new BrowserWindow({
+    width: 800,
+    height: 600,
+    minWidth: 320,
+    minHeight: 240,
+    backgroundColor: "#0a0a0a",
+    title: "화면 공유 보기",
+    webPreferences: {
+      preload: preloadPath,
+      contextIsolation: true,
+      nodeIntegration: false
+    }
+  });
+  screenSharePopupWindow.loadFile(popupPath);
+  screenSharePopupWindow.on("closed", () => {
+    screenSharePopupWindow = null;
+  });
+  return screenSharePopupWindow;
 }
 
 function applyMiniMode() {
@@ -360,6 +388,33 @@ app.whenReady().then(() => {
     } catch (e) {
       return { ok: false, error: e.message || e };
     }
+  });
+
+  // 화면 공유 새 창: 창 생성 후 메인 윈도우에 'popup ready' 전달, offer/answer/ice 릴레이
+  ipcMain.handle("openScreenSharePopup", () => {
+    createScreenSharePopupWindow();
+    return { ok: true };
+  });
+  ipcMain.on("screen-share-popup-ready", () => {
+    if (mainWindow && !mainWindow.isDestroyed()) mainWindow.webContents.send("screen-share-popup-ready");
+  });
+  ipcMain.handle("screenShareOffer", (_event, sdp) => {
+    if (screenSharePopupWindow && !screenSharePopupWindow.isDestroyed()) {
+      screenSharePopupWindow.webContents.send("screen-share-offer", sdp);
+    }
+    return { ok: true };
+  });
+  ipcMain.on("screen-share-answer", (_event, sdp) => {
+    if (mainWindow && !mainWindow.isDestroyed()) mainWindow.webContents.send("screen-share-answer", sdp);
+  });
+  ipcMain.handle("screenShareIce", (_event, candidate) => {
+    if (screenSharePopupWindow && !screenSharePopupWindow.isDestroyed()) {
+      screenSharePopupWindow.webContents.send("screen-share-ice", candidate);
+    }
+    return { ok: true };
+  });
+  ipcMain.on("screen-share-ice", (_event, candidate) => {
+    if (mainWindow && !mainWindow.isDestroyed()) mainWindow.webContents.send("screen-share-ice", candidate);
   });
 
   app.on("activate", () => {

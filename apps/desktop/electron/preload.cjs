@@ -27,5 +27,25 @@ contextBridge.exposeInMainWorld("jarvisDesktop", {
     return () => ipcRenderer.removeListener("claude-code-done", fn);
   },
   openGeneratedFolder: (dirPath) => ipcRenderer.invoke("openGeneratedFolder", dirPath),
-  openInVSCode: (dirPath) => ipcRenderer.invoke("openInVSCode", dirPath)
+  openInVSCode: (dirPath) => ipcRenderer.invoke("openInVSCode", dirPath),
+
+  // 화면 공유 새 창
+  openScreenSharePopup: () => ipcRenderer.invoke("openScreenSharePopup"),
+  onScreenSharePopupReady: (cb) => {
+    const fn = () => cb();
+    ipcRenderer.on("screen-share-popup-ready", fn);
+    return () => ipcRenderer.removeListener("screen-share-popup-ready", fn);
+  },
+  sendScreenShareOffer: (sdp) => ipcRenderer.invoke("screenShareOffer", sdp),
+  onScreenShareAnswer: (cb) => {
+    const fn = (_e, sdp) => cb(sdp);
+    ipcRenderer.on("screen-share-answer", fn);
+    return () => ipcRenderer.removeListener("screen-share-answer", fn);
+  },
+  sendScreenShareIce: (candidate) => ipcRenderer.invoke("screenShareIce", candidate),
+  onScreenShareIce: (cb) => {
+    const fn = (_e, candidate) => cb(candidate);
+    ipcRenderer.on("screen-share-ice", fn);
+    return () => ipcRenderer.removeListener("screen-share-ice", fn);
+  }
 });

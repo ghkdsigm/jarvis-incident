@@ -3822,7 +3822,7 @@ async function send() {
     // jarvis trigger: only by plain text (attachments are ignored)
     const triggerText = base || plainTextFromContent(content);
     if (isJarvisTrigger(triggerText)) {
-      store.askJarvis(store.activeRoomId, stripJarvisPrefix(triggerText));
+      store.askJarvis(store.activeRoomId, JARVIS_NO_GREETING + stripJarvisPrefix(triggerText));
     }
 
     text.value = "";
@@ -3842,6 +3842,9 @@ function askJarvisQuick() {
 function closeJarvis() {
   jarvisOpen.value = false;
 }
+
+/** AI에게 전달하는 공통 지시: 인사 생략 */
+const JARVIS_NO_GREETING = "인사(안녕하세요 등)는 생략하고 바로 답변해줘.\n\n";
 
 function submitJarvis() {
   if (!store.activeRoomId) return;
@@ -3864,7 +3867,7 @@ function submitJarvis() {
   jarvisOpen.value = false;
   jarvisPopoverOpen.value = false;
   pendingAiContextRoomId.value = store.activeRoomId;
-  store.askJarvis(store.activeRoomId, ctxBlock);
+  store.askJarvis(store.activeRoomId, JARVIS_NO_GREETING + ctxBlock);
 }
 
 async function openJarvisPopoverWithPrompt(prompt: string) {

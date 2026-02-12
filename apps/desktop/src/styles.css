@@ -103,7 +103,7 @@
     --bubble-me-border: var(--brand);
     --bubble-me-text: #ffffff;
     --bubble-bot-bg: #18181b;
-    --bubble-bot-border: #27272a;
+    --bubble-bot-border: #00AD50;
     --bubble-bot-text: #f4f4f5;
     --bubble-other-bg: #27272a;
     --bubble-other-border: #3f3f46;
@@ -155,7 +155,7 @@
     --avatar-text: #334155; /* slate-700 */
 
     --bubble-bot-bg: #ffffff;
-    --bubble-bot-border: #e2e8f0;
+    --bubble-bot-border: #00AD50;
     --bubble-bot-text: #0f172a;
     --bubble-other-bg: #f1f5f9;
     --bubble-other-border: #cbd5e1;
@@ -322,9 +322,10 @@
     color: var(--bubble-me-text);
   }
   .t-bubble-bot {
-    background: var(--bubble-bot-bg);
-    border-color: var(--bubble-bot-border);
-    color: var(--bubble-bot-text);
+    background: linear-gradient(to right, #8B6DDB, #697EDD, #4DA9ED, #44C0EE);
+    border: none;
+    color: #ffffff;
+    text-shadow: 0 0 12px rgba(255, 255, 255, 0.35);
   }
   .t-bubble-other {
     background: var(--bubble-other-bg);

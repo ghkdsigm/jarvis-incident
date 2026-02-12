@@ -1,7 +1,7 @@
 <template>
   <div
     class="flex items-center justify-between border-b t-border t-topbar"
-    :class="miniMode ? 'h-11 px-2' : 'h-12 px-3'"
+    :class="[miniMode ? 'h-11 px-2' : 'h-12 px-3', theme === 'dark' ? 't-topbar-dark' : 'bg-[#eee]']"
   >
     <div class="flex items-center gap-2 min-w-0">
       <button

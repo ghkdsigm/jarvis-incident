@@ -163,8 +163,18 @@ export async function fetchRoomGraph(
   return await res.json();
 }
 
-/** Brain Pulse 리포트: 채팅·아이디어 카드·지식 그래프 기반 1개 보고서 + AI 인텔리전스 제안 */
+/** Brain Pulse 리포트: 채팅·아이디어 카드·지식 그래프 기반 전문 분석 리포트 + AI 인텔리전스 제안 */
 export type PulseReportSections = {
+  executiveInsight?: string;
+  problemDefinition?: string;
+  causalAnalysis?: string;
+  impactMatrix?: string;
+  opportunities?: string;
+  actionItems?: string;
+  techConsiderations?: string;
+  orgConsiderations?: string;
+  riskAnalysis?: string;
+  nextSteps?: string;
   people?: string;
   chat?: string;
   documents?: string;
@@ -228,6 +238,28 @@ export async function importMeetingSummary(
   if (!res.ok) {
     const err = await res.json().catch(() => ({}));
     throw new Error((err as any).error ?? `Import failed: ${res.status}`);
+  }
+  return await res.json();
+}
+
+/** 오늘의 아이디어 영감: 채팅방 주제 기준 네이버 뉴스 최신 3건 */
+export type RoomNewsItemDto = {
+  title: string;
+  link: string;
+  description: string;
+  pubDate: string;
+};
+
+export async function fetchRoomNews(
+  token: string,
+  roomId: string
+): Promise<{ items: RoomNewsItemDto[] }> {
+  const res = await fetch(`${API_BASE}/rooms/${roomId}/news`, {
+    headers: { Authorization: `Bearer ${token}` }
+  });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error((err as any).error ?? `News fetch failed: ${res.status}`);
   }
   return await res.json();
 }

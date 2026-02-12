@@ -121,6 +121,28 @@ export async function insightsRoutes(app: FastifyInstance) {
       if (!title) title = "아이디어 카드";
       if (!content) content = {};
 
+      // 동일 sourceMessageId 카드가 이미 있으면 중복 생성 방지 → 기존 카드 반환
+      if (sourceMessageId) {
+        const existing = await prisma.ideaCard.findFirst({
+          where: { roomId, sourceMessageId }
+        });
+        if (existing) {
+          return reply.send({
+            id: existing.id,
+            roomId: existing.roomId,
+            createdBy: existing.createdBy ?? null,
+            sourceMessageId: existing.sourceMessageId ?? null,
+            kind: existing.kind,
+            weekStart: existing.weekStart ? existing.weekStart.toISOString() : null,
+            title: existing.title,
+            content: (existing.content as object) ?? {},
+            graph: existing.graph ?? null,
+            createdAt: existing.createdAt.toISOString(),
+            updatedAt: existing.updatedAt.toISOString()
+          });
+        }
+      }
+
       // createdBy FK: only set if user exists (avoid 500 on stale token / deleted user)
       let createdBy: string | null = userId;
       const userExists = await prisma.user.findUnique({ where: { id: userId }, select: { id: true } });
@@ -339,11 +361,29 @@ export async function insightsRoutes(app: FastifyInstance) {
     // Replace existing AI cards for the same weekStart
     await prisma.ideaCard.deleteMany({ where: { roomId, kind: "weekly_ai", weekStart } });
 
+    /** 방 내 동일 내용 카드 여부 확인용: title + content.problem 정규화 */
+    function contentKey(t: string, cont: any): string {
+      const p = String((cont?.problem ?? "") ?? "").trim().replace(/\s+/g, " ");
+      return `${String(t).trim()}\n${p}`.trim() || t || "주간 아이디어";
+    }
+    const existingKeys = new Set<string>();
+    const roomCards = await prisma.ideaCard.findMany({
+      where: { roomId },
+      select: { title: true, content: true }
+    });
+    for (const rc of roomCards) {
+      const c = rc.content as any;
+      existingKeys.add(contentKey(rc.title, c));
+    }
+
     let createdCount = 0;
     for (const c of cards.slice(0, 12)) {
       const title = String(c?.title ?? "").trim() || "주간 아이디어";
       const content = (c?.content ?? {}) as any;
       const graph = (c?.graph ?? null) as any;
+      const key = contentKey(title, content);
+      if (existingKeys.has(key)) continue;
+      existingKeys.add(key);
 
       await prisma.ideaCard.create({
         data: {
@@ -363,8 +403,18 @@ export async function insightsRoutes(app: FastifyInstance) {
     return reply.send({ ok: true, created: createdCount });
   });
 
-  // Brain Pulse 리포트: 카드+그래프+채팅 기반 1개 보고서 + AI 인텔리전스 제안 (방당 1개 저장, 1주 자동 업데이트 전까지 유지)
+  // Brain Pulse 리포트: 카드+그래프+채팅 기반 전문 분석 리포트 (방당 1개 저장, 1주 자동 업데이트 전까지 유지)
   type PulseReportSections = {
+    executiveInsight?: string;
+    problemDefinition?: string;
+    causalAnalysis?: string;
+    impactMatrix?: string;
+    opportunities?: string;
+    actionItems?: string;
+    techConsiderations?: string;
+    orgConsiderations?: string;
+    riskAnalysis?: string;
+    nextSteps?: string;
     people?: string;
     chat?: string;
     documents?: string;
@@ -443,10 +493,22 @@ export async function insightsRoutes(app: FastifyInstance) {
       .slice(0, 30_000);
 
     const system =
-      "You are a meeting intelligence assistant. Given chat transcript and idea cards (with knowledge-graph tags), produce ONE consolidated report in Korean.\n" +
-      "Return ONLY valid JSON (no markdown, no code block) with this exact shape:\n" +
-      '{"summary":"한 줄 요약","sections":{"people":"참여자/역할 요약","chat":"채팅 흐름 요약","documents":"언급된 문서","tasks":"태스크/할일","ideas":"아이디어","problems":"문제 제기","complaints":"불만/우려","techIssues":"기술 이슈","decisions":"결정 사항"},"aiSuggestions":["제안1","제안2",...]}\n' +
-      "Omit section keys when no content. aiSuggestions: 3~7 actionable recommendations based on the report. Write all text in Korean.";
+      "You are a senior strategy/consulting analyst. Given chat transcript and idea cards, produce ONE professional analysis report in Korean.\n" +
+      "Do NOT simply summarize or paraphrase the input. Reconstruct hidden problems, root causes, opportunities, and strategies by inferring from context. Write in a consulting-style, data-driven tone. Depth: at least 2–3x substance vs. simple summary; avoid fluff.\n\n" +
+      "Return ONLY valid JSON (no markdown, no code block). Use this exact shape (omit section keys only when truly no content):\n" +
+      '{"summary":"한 문장 핵심 요약","sections":{' +
+      '"executiveInsight":"핵심 인사이트 3~5개 (불릿 또는 번호, 각 1~2문장)",' +
+      '"problemDefinition":"문제 정의 — 왜 지금 중요한가? (배경·시의성·스테이크홀더)",' +
+      '"causalAnalysis":"원인 분석 — Causal Chain 방식 (원인→결과→연쇄)",' +
+      '"impactMatrix":"영향도 매트릭스 — 사람/조직/비용/고객/기술/리스크 관점으로 정리",' +
+      '"opportunities":"기회 발굴 — AI·자동화·서비스 관점의 기회",' +
+      '"actionItems":"액션 아이템 — 즉시·단기·중기·장기 실행 단계별로 구분",' +
+      '"techConsiderations":"기술적 고려사항 — AI·시스템·데이터 관점",' +
+      '"orgConsiderations":"조직적 고려사항 — 프로세스·협업·역할",' +
+      '"riskAnalysis":"리스크 분석 및 대응전략",' +
+      '"nextSteps":"미해결 질문 / 다음 단계(Next Step)"' +
+      '},"aiSuggestions":["연구/실험/제품화 아이디어 1","...","..."]}\n' +
+      "Rules: (1) All text in Korean. (2) executiveInsight, problemDefinition, causalAnalysis, impactMatrix, opportunities, actionItems, techConsiderations, orgConsiderations, riskAnalysis, nextSteps must be filled with inferred/analytical content, not raw copy of chat. (3) aiSuggestions: 3~7 actionable items (research/experiment/productization). (4) Optional: include 'people' in sections as one-line participant/role summary if useful for Spec.";
 
     const userContent =
       `Room: ${room?.title ?? roomId}\n\n` +

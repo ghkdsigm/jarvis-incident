@@ -18,6 +18,7 @@
     "@fastify/websocket": "^11.0.1",
     "@jarvis/shared": "0.1.0",
     "@prisma/client": "^6.3.1",
+    "axios": "^1.13.5",
     "bullmq": "^5.41.0",
     "dotenv": "^16.4.7",
     "fastify": "^5.2.1",
@@ -27,8 +28,8 @@
   "devDependencies": {
     "@types/node": "^22.13.4",
     "eslint": "^9.16.0",
+    "prisma": "^6.3.1",
     "tsx": "^4.19.2",
-    "typescript": "^5.7.3",
-    "prisma": "^6.3.1"
+    "typescript": "^5.7.3"
   }
 }

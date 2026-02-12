@@ -12,7 +12,7 @@
           tabindex="-1"
         >
           <div class="flex items-center justify-between gap-3 px-4 py-3 border-b t-border">
-            <div class="text-sm font-semibold truncate">{{ title }}</div>
+            <div class="text-sm font-semibold truncate" :class="theme === 'dark' ? 'text-white' : 'text-black'">{{ title }}</div>
             <button
               type="button"
               class="h-7 w-7 inline-flex items-center justify-center rounded t-btn-secondary"
@@ -54,7 +54,11 @@
 </template>
 
 <script setup lang="ts">
-import { nextTick, onBeforeUnmount, ref, watch } from "vue";
+import { nextTick, onBeforeUnmount, onMounted, ref, watch } from "vue";
+import { getActiveTheme, type ThemeMode } from "../../theme";
+
+const theme = ref<ThemeMode>("dark");
+let themeObserver: MutationObserver | null = null;
 
 const props = withDefaults(
   defineProps<{
@@ -99,8 +103,18 @@ watch(
   }
 );
 
+onMounted(() => {
+  theme.value = getActiveTheme();
+  themeObserver = new MutationObserver(() => {
+    theme.value = getActiveTheme();
+  });
+  themeObserver.observe(document.documentElement, { attributes: true, attributeFilter: ["data-theme"] });
+});
+
 window.addEventListener("keydown", onGlobalKeydown);
 onBeforeUnmount(() => {
   window.removeEventListener("keydown", onGlobalKeydown);
+  themeObserver?.disconnect();
+  themeObserver = null;
 });
 </script>

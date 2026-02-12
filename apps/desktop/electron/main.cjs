@@ -1,4 +1,4 @@
-const { app, BrowserWindow, ipcMain, globalShortcut, dialog, shell } = require("electron");
+const { app, BrowserWindow, ipcMain, globalShortcut, dialog, shell, desktopCapturer, session } = require("electron");
 const path = require("node:path");
 const fs = require("node:fs");
 const http = require("node:http");
@@ -189,6 +189,24 @@ function applyMiniMode() {
 
 app.whenReady().then(() => {
   createWindow();
+
+  // Electron does not implement getDisplayMedia by default; use desktopCapturer so
+  // navigator.mediaDevices.getDisplayMedia() in the renderer works (e.g. screen share).
+  // Without this handler, renderer gets "not supported" when calling getDisplayMedia.
+  // Note: app must be fully restarted for main.cjs changes to take effect.
+  session.defaultSession.setDisplayMediaRequestHandler((request, callback) => {
+    desktopCapturer
+      .getSources({ types: ["screen", "window"], thumbnailSize: { width: 0, height: 0 } })
+      .then((sources) => {
+        const src = sources.length ? sources[0] : null;
+        if (src) callback({ video: src, audio: false });
+        else callback();
+      })
+      .catch((err) => {
+        console.error("desktopCapturer.getSources failed", err);
+        callback();
+      });
+  });
 
   globalShortcut.register("CommandOrControl+Shift+J", () => {
     if (!mainWindow) return;

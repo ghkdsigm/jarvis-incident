@@ -62,6 +62,7 @@ model Message {
   senderType   String
   senderUserId String?
   content      String
+  attachments  Json?
   createdAt    DateTime @default(now())
 
   room      Room       @relation(fields: [roomId], references: [id], onDelete: Cascade)

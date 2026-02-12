@@ -15,39 +15,55 @@ function sectionToLines(s: string | undefined): string[] {
   if (!s || typeof s !== "string") return [];
   return s
     .split(/\n|[,;]/)
-    .map((x) => x.replace(/^[-*•]\s*/, "").trim())
+    .map((x) => x.replace(/^[-*•]\s*|\d+\.\s*/, "").trim())
     .filter(Boolean);
 }
 
-/** Extract role-like tokens from people section */
+/** Prefer new-format sections (actionItems, opportunities, techConsiderations), fallback to legacy (tasks, ideas, techIssues) */
+function getTasksLines(pulse: PulseReportDto): string[] {
+  const fromAction = sectionToLines(pulse.sections.actionItems);
+  if (fromAction.length > 0) return fromAction;
+  return sectionToLines(pulse.sections.tasks);
+}
+function getIdeasLines(pulse: PulseReportDto): string[] {
+  const fromOpp = sectionToLines(pulse.sections.opportunities);
+  if (fromOpp.length > 0) return fromOpp;
+  return sectionToLines(pulse.sections.ideas);
+}
+function getTechIssuesLines(pulse: PulseReportDto): string[] {
+  const fromTech = sectionToLines(pulse.sections.techConsiderations);
+  if (fromTech.length > 0) return fromTech;
+  return sectionToLines(pulse.sections.techIssues);
+}
+
+/** Extract role-like tokens from people section (or legacy) */
 function extractRoles(people: string | undefined): string[] {
   const lines = sectionToLines(people);
   if (lines.length > 0) return lines;
   return [TBD];
 }
 
-/** Build scope from summary, tasks, ideas, techIssues, aiSuggestions */
+/** Build scope from summary, tasks/actionItems, ideas/opportunities, techConsiderations/techIssues, aiSuggestions */
 function buildScope(pulse: PulseReportDto): SpecPacketScope {
   const goal = pulse.summary?.trim() || TBD;
   const mvp: string[] = [];
   const outOfScope: string[] = [];
 
-  sectionToLines(pulse.sections.tasks).forEach((t) => mvp.push(t));
-  sectionToLines(pulse.sections.ideas).forEach((i) => mvp.push(i));
+  getTasksLines(pulse).forEach((t) => mvp.push(t));
+  getIdeasLines(pulse).forEach((i) => mvp.push(i));
   pulse.aiSuggestions?.forEach((s) => mvp.push(s));
 
-  sectionToLines(pulse.sections.techIssues).forEach((t) => outOfScope.push(t));
+  getTechIssuesLines(pulse).forEach((t) => outOfScope.push(t));
   if (outOfScope.length === 0) outOfScope.push("(기술 이슈 없음 또는 TBD)");
 
   return { goal, mvp: mvp.length ? mvp : [TBD], outOfScope };
 }
 
-/** Build entities from tasks/ideas (minimal Task, Idea with status-like enums) */
+/** Build entities from tasks/actionItems and ideas/opportunities */
 function buildEntities(pulse: PulseReportDto): Record<string, SpecPacketEntity> {
   const entities: Record<string, SpecPacketEntity> = {};
-
-  const hasTasks = sectionToLines(pulse.sections.tasks).length > 0;
-  const hasIdeas = sectionToLines(pulse.sections.ideas).length > 0;
+  const hasTasks = getTasksLines(pulse).length > 0;
+  const hasIdeas = getIdeasLines(pulse).length > 0;
 
   if (hasTasks || !hasIdeas) {
     entities.Task = {
@@ -129,7 +145,7 @@ function collectTbdList(pulse: PulseReportDto, spec: SpecPacket): string[] {
 
 /**
  * Convert Pulse report (structured DTO) to SpecPacket + TBD list.
- * Section mapping: people→roles, tasks/ideas→entities+scope.mvp, techIssues→outOfScope, decisions→policies.
+ * Supports new format (actionItems, opportunities, techConsiderations, riskAnalysis, nextSteps) and legacy sections.
  */
 export function buildSpecPacket(pulse: PulseReportDto): SpecPacket {
   const roles = extractRoles(pulse.sections.people);

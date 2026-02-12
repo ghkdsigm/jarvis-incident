@@ -57,8 +57,18 @@ export type SpecPacket = {
   policies: SpecPacketPolicies;
 };
 
-/** Pulse report section keys (from API) */
+/** Pulse report section keys (from API). New format: professional analysis; legacy keys for Spec compat. */
 export type PulseReportSections = {
+  executiveInsight?: string;
+  problemDefinition?: string;
+  causalAnalysis?: string;
+  impactMatrix?: string;
+  opportunities?: string;
+  actionItems?: string;
+  techConsiderations?: string;
+  orgConsiderations?: string;
+  riskAnalysis?: string;
+  nextSteps?: string;
   people?: string;
   chat?: string;
   documents?: string;

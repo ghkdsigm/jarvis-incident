@@ -117,9 +117,16 @@ TBD (필요 시 추가)
 `;
 }
 
-/** DECISIONS.md: 결정 사항, 근거, 날짜, 영향 범위 */
-export function buildDecisions(pulse: { sections: { decisions?: string } }, spec: SpecPacket): string {
-  const raw = pulse.sections.decisions?.trim() || "TBD";
+/** DECISIONS.md: 결정 사항, 근거, 날짜, 영향 범위 (riskAnalysis/nextSteps or legacy decisions) */
+export function buildDecisions(
+  pulse: { sections: { decisions?: string; riskAnalysis?: string; nextSteps?: string } },
+  spec: SpecPacket
+): string {
+  const raw =
+    pulse.sections.decisions?.trim() ||
+    pulse.sections.riskAnalysis?.trim() ||
+    pulse.sections.nextSteps?.trim() ||
+    "TBD";
   const lines = raw.split(/\n/).filter(Boolean).map((l) => l.trim());
   const list = lines.length ? lines.map((l) => `- ${escapeMd(l)}`) : ["- (Pulse 결정 사항 없음)"];
   return `# Decisions
@@ -137,7 +144,7 @@ ${list.join("\n")}
 export function buildAllDocuments(
   spec: SpecPacket,
   tbdList: string[],
-  pulse: { sections: { decisions?: string } }
+  pulse: { sections: { decisions?: string; riskAnalysis?: string; nextSteps?: string } }
 ): SpecPacketResult["documents"] {
   return {
     PRD: buildPRD(spec, tbdList),

@@ -104,6 +104,29 @@
           </span>
         </div>
         <div class="flex items-center gap-2">
+          <button
+            class="h-6 w-6 inline-flex items-center justify-center rounded t-btn-secondary"
+            title="오늘의 채팅방 주제 관련 뉴스"
+            aria-label="오늘의 채팅방 주제 관련 뉴스"
+            @click="openNewsPopup"
+          >
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+              <path
+                d="M4 4h16v12H4V4Z"
+                stroke="currentColor"
+                stroke-width="1.8"
+                stroke-linecap="round"
+                stroke-linejoin="round"
+              />
+              <path
+                d="M8 8h8M8 12h5"
+                stroke="currentColor"
+                stroke-width="1.8"
+                stroke-linecap="round"
+                stroke-linejoin="round"
+              />
+            </svg>
+          </button>
           <button class="px-2 py-1 text-xs rounded t-btn-secondary" @click="openInvite">
             + 동료추가
           </button>
@@ -203,7 +226,18 @@
             <div class="flex" :class="bubbleWrapClass(m)">
               <div class="max-w-[72%] min-w-0 flex flex-col" :class="bubbleColumnClass(m)">
                 <div class="text-[11px] t-text-subtle flex items-center gap-2 w-full" :class="metaClass(m)">
-                  <span class="font-mono">{{ labelFor(m) }}</span>
+                  <span v-if="isBot(m)" class="inline-flex items-center font-mono" title="AI">
+                    <svg class="w-4 h-4 shrink-0" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+                      <path d="M12 2a2 2 0 0 1 2 2v1H10V4a2 2 0 0 1 2-2z" fill="#00AD50"/>
+                      <rect x="6" y="7" width="12" height="10" rx="2" stroke="#00AD50" stroke-width="1.5" fill="none"/>
+                      <circle cx="9.5" cy="11.5" r="1.25" fill="#00AD50"/>
+                      <circle cx="14.5" cy="11.5" r="1.25" fill="#00AD50"/>
+                      <path d="M9 15h6" stroke="#00AD50" stroke-width="1.5" stroke-linecap="round"/>
+                      <path d="M12 17v3" stroke="#00AD50" stroke-width="1.2" stroke-linecap="round"/>
+                      <path d="M9 20h6" stroke="#00AD50" stroke-width="1.2" stroke-linecap="round"/>
+                    </svg>
+                  </span>
+                  <span v-else class="font-mono">{{ labelFor(m) }}</span>
                   <span class="tabular-nums">{{ formatChatTime(m.createdAt) }}</span>
                   <span v-if="isDeleted(m)" class="t-text-faint">삭제됨</span>
                   <span v-else-if="isMessageConfirmed(m)" class="text-[#00CE7D]" title="확인완료">✓</span>
@@ -217,7 +251,7 @@
                     @pointerdown.stop
                     @click.stop="saveMessageAsCard(m)"
                   >
-                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+                    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" aria-hidden="true">
                       <path
                         d="M7 3h10a2 2 0 0 1 2 2v16l-7-4-7 4V5a2 2 0 0 1 2-2Z"
                         stroke="currentColor"
@@ -403,7 +437,18 @@
               <div class="flex" :class="bubbleWrapClass(m)">
                 <div class="max-w-[72%] min-w-0 flex flex-col" :class="bubbleColumnClass(m)">
                   <div class="text-[11px] t-text-subtle flex items-center gap-2 w-full" :class="metaClass(m)">
-                    <span class="font-mono">{{ labelFor(m) }}</span>
+                    <span v-if="isBot(m)" class="inline-flex items-center font-mono" title="AI">
+                      <svg class="w-4 h-4 shrink-0" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+                        <path d="M12 2a2 2 0 0 1 2 2v1H10V4a2 2 0 0 1 2-2z" fill="#00AD50"/>
+                        <rect x="6" y="7" width="12" height="10" rx="2" stroke="#00AD50" stroke-width="1.5" fill="none"/>
+                        <circle cx="9.5" cy="11.5" r="1.25" fill="#00AD50"/>
+                        <circle cx="14.5" cy="11.5" r="1.25" fill="#00AD50"/>
+                        <path d="M9 15h6" stroke="#00AD50" stroke-width="1.5" stroke-linecap="round"/>
+                        <path d="M12 17v3" stroke="#00AD50" stroke-width="1.2" stroke-linecap="round"/>
+                        <path d="M9 20h6" stroke="#00AD50" stroke-width="1.2" stroke-linecap="round"/>
+                      </svg>
+                    </span>
+                    <span v-else class="font-mono">{{ labelFor(m) }}</span>
                     <span class="tabular-nums">{{ formatChatTime(m.createdAt) }}</span>
                     <span v-if="isDeleted(m)" class="t-text-faint">삭제됨</span>
                     <span v-else-if="isMessageConfirmed(m)" class="text-[#00CE7D]" title="확인완료">✓</span>
@@ -931,9 +976,9 @@
                   <h4 class="text-sm font-semibold t-text mb-1">요약</h4>
                   <p class="text-sm t-text-subtle whitespace-pre-wrap">{{ pulseReport.summary }}</p>
                 </section>
-                <template v-for="(label, key) in pulseSectionLabels" :key="key">
+                <template v-for="key in pulseSectionOrder" :key="key">
                   <section v-if="pulseReport.sections[key]" class="border-t t-border pt-3">
-                    <h4 class="text-sm font-semibold t-text mb-1">{{ label }}</h4>
+                    <h4 class="text-sm font-semibold t-text mb-1">{{ pulseSectionLabels[key] }}</h4>
                     <p class="text-sm t-text-subtle whitespace-pre-wrap">{{ pulseReport.sections[key] }}</p>
                   </section>
                 </template>
@@ -1618,6 +1663,35 @@
     </template>
   </CommonModal>
 
+  <CommonModal :open="newsPopupOpen" title="오늘의 채팅방 주제 관련 뉴스" @close="closeNewsPopup">
+    <div class="space-y-3">
+      <p class="text-xs t-text-muted">
+        채팅방 주제({{ store.activeRoom?.title ?? "이 방" }})를 기준으로 검색한 최신 뉴스입니다.
+      </p>
+      <div v-if="roomNewsLoading" class="py-6 text-center text-sm t-text-subtle">뉴스를 불러오는 중…</div>
+      <div v-else-if="roomNewsError" class="py-4 text-center text-sm text-[#FB4F4F]">{{ roomNewsError }}</div>
+      <div v-else-if="!roomNewsItems.length" class="py-6 text-center text-sm t-text-subtle">
+        현재 주제와 관련된 최신 뉴스가 없습니다.
+      </div>
+      <div v-else class="space-y-3">
+        <a
+          v-for="(item, idx) in roomNewsItems"
+          :key="idx"
+          :href="item.link"
+          target="_blank"
+          rel="noopener noreferrer"
+          class="block rounded-lg border t-border t-surface p-3 text-left hover:border-[#00AD50] transition-colors cursor-pointer"
+        >
+          <div class="text-sm font-bold truncate" :class="theme === 'dark' ? 'text-white' : 'text-[#262626]'">
+            {{ item.title }}
+          </div>
+          <div v-if="item.description" class="mt-1 text-xs t-text line-clamp-2">{{ item.description }}</div>
+          <div class="mt-1.5 text-[11px] t-text-muted">{{ formatNewsDate(item.pubDate) }}</div>
+        </a>
+      </div>
+    </div>
+  </CommonModal>
+
   <CommonModal :open="pastMeetingImportOpen" title="지난 회의록 가져오기" @close="closePastMeetingImport">
     <div class="space-y-3">
       <div class="text-xs t-text-muted">
@@ -1803,8 +1877,10 @@ import {
   type IdeaCardDto,
   type PulseReportDto,
   fetchUsers,
+  fetchRoomNews,
   importMeetingSummary,
-  translateText
+  translateText,
+  type RoomNewsItemDto
 } from "../api/http";
 import JSZip from "jszip";
 import { pulseReportToSpecResult, validateSpecPacket, type SpecPacketResult } from "../utils/pulseToSpec";
@@ -1956,6 +2032,23 @@ const ideaCards = ref<IdeaCardDto[]>([]);
 const ideaCardSaveNotification = ref<string | null>(null);
 const cardsLoading = ref(false);
 const cardsError = ref<string>("");
+
+/** 동일 내용 카드 중복 제거: sourceMessageId 기준 또는 title+problem 정규화 문자열 기준으로 첫 항목만 유지 */
+function dedupeIdeaCards(cards: IdeaCardDto[]): IdeaCardDto[] {
+  const seen = new Set<string>();
+  return cards.filter((c) => {
+    const key = c.sourceMessageId
+      ? `msg:${c.sourceMessageId}`
+      : String(
+          `${String(c?.title ?? "").trim()}\n${String((c?.content as any)?.problem ?? "").trim()}`
+        )
+          .replace(/\s+/g, " ")
+          .trim() || `id:${c.id}`;
+    if (seen.has(key)) return false;
+    seen.add(key);
+    return true;
+  });
+}
 const graphLoading = ref(false);
 const graphError = ref<string>("");
 const graphData = ref<{ roomId: string; weekStart: string | null; nodes: any[]; edges: any[] } | null>(null);
@@ -1996,7 +2089,39 @@ const claudeCodeLogs = ref("");
 const claudeCodeError = ref("");
 const generatedProjectPath = ref("");
 let claudeCodeUnsub: (() => void)[] = [];
+/** 표시 순서: 전문 분석 리포트 11개 섹션 우선, 이후 레거시 섹션 */
+const pulseSectionOrder: (keyof PulseReportDto["sections"])[] = [
+  "executiveInsight",
+  "problemDefinition",
+  "causalAnalysis",
+  "impactMatrix",
+  "opportunities",
+  "actionItems",
+  "techConsiderations",
+  "orgConsiderations",
+  "riskAnalysis",
+  "nextSteps",
+  "people",
+  "chat",
+  "documents",
+  "tasks",
+  "ideas",
+  "problems",
+  "complaints",
+  "techIssues",
+  "decisions"
+];
 const pulseSectionLabels: Record<keyof PulseReportDto["sections"], string> = {
+  executiveInsight: "Executive Insight (핵심 인사이트)",
+  problemDefinition: "문제 정의",
+  causalAnalysis: "원인 분석",
+  impactMatrix: "영향도 매트릭스",
+  opportunities: "기회 발굴",
+  actionItems: "액션 아이템",
+  techConsiderations: "기술적 고려사항",
+  orgConsiderations: "조직적 고려사항",
+  riskAnalysis: "리스크 분석 & 대응전략",
+  nextSteps: "미해결 질문 / 다음 단계",
   people: "사람",
   chat: "채팅",
   documents: "문서",
@@ -2054,7 +2179,7 @@ async function loadIdeaCards() {
   cardsLoading.value = true;
   cardsError.value = "";
   try {
-    ideaCards.value = await fetchIdeaCards(store.token, store.activeRoomId, 120);
+    ideaCards.value = dedupeIdeaCards(await fetchIdeaCards(store.token, store.activeRoomId, 120));
   } catch (e: any) {
     cardsError.value = e?.message ?? "카드 목록 로드 실패";
   } finally {
@@ -2183,7 +2308,7 @@ async function saveMessageAsCard(m: any) {
       ideaCardSaveNotification.value = "아이디어 카드에서 제거되었습니다";
     } else {
       const created = await createIdeaCard(store.token, store.activeRoomId, { sourceMessageId: m.id });
-      ideaCards.value = [created, ...ideaCards.value.filter((c) => c.id !== created.id)];
+      ideaCards.value = dedupeIdeaCards([created, ...ideaCards.value.filter((c) => c.id !== created.id)]);
       ideaCardSaveNotification.value = "아이디어 카드에 저장되었습니다";
     }
     const t = setTimeout(() => {
@@ -3204,8 +3329,9 @@ async function stopListeningAndOpenJarvis() {
     });
   }
 
-  // 음성 내용은 선택 메시지로 저장하고, 사용자는 별도 질문/요청을 입력
-  await openJarvisPopoverWithPrompt("");
+  // 선택 메시지 반영이 돔에 적용된 뒤 AI 질문 팝업 열기, 질문 textarea에는 전사 내용 자동 반영
+  await nextTick();
+  await openJarvisPopoverWithPrompt(transcript ?? "");
 }
 
 async function toggleListening() {
@@ -3316,6 +3442,67 @@ const pastMeetingImportOpen = ref(false);
 const selectedSourceRoomId = ref<string>("");
 const pastMeetingLoading = ref(false);
 const pastMeetingError = ref("");
+
+const newsPopupOpen = ref(false);
+const roomNewsItems = ref<RoomNewsItemDto[]>([]);
+const roomNewsLoading = ref(false);
+const roomNewsError = ref("");
+const roomNewsCache = ref<Record<string, { items: RoomNewsItemDto[]; date: string }>>({});
+
+function getTodayDateStr() {
+  return new Date().toISOString().slice(0, 10);
+}
+
+function openNewsPopup() {
+  newsPopupOpen.value = true;
+  roomNewsError.value = "";
+  const roomId = store.activeRoomId;
+  if (!roomId) {
+    roomNewsItems.value = [];
+    return;
+  }
+  const today = getTodayDateStr();
+  const cached = roomNewsCache.value[roomId];
+  if (cached && cached.date === today) {
+    roomNewsItems.value = cached.items;
+    return;
+  }
+  loadRoomNews(roomId);
+}
+
+async function loadRoomNews(roomId: string) {
+  if (!store.token) return;
+  roomNewsLoading.value = true;
+  roomNewsError.value = "";
+  roomNewsItems.value = [];
+  try {
+    const { items } = await fetchRoomNews(store.token, roomId);
+    roomNewsItems.value = items ?? [];
+    roomNewsCache.value[roomId] = { items: items ?? [], date: getTodayDateStr() };
+  } catch (e: any) {
+    roomNewsError.value = e?.message ?? "뉴스를 불러오지 못했습니다.";
+    roomNewsItems.value = [];
+  } finally {
+    roomNewsLoading.value = false;
+  }
+}
+
+function closeNewsPopup() {
+  newsPopupOpen.value = false;
+}
+
+function formatNewsDate(pubDate: string) {
+  if (!pubDate) return "";
+  const d = new Date(pubDate);
+  if (!Number.isFinite(d.getTime())) return pubDate;
+  return d.toLocaleDateString("ko-KR", {
+    year: "numeric",
+    month: "short",
+    day: "numeric",
+    hour: "2-digit",
+    minute: "2-digit"
+  });
+}
 
 const pastMeetingRooms = computed(() => {
   const active = store.activeRoomId;

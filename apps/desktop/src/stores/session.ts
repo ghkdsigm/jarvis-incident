@@ -42,7 +42,12 @@ export const useSessionStore = defineStore("session", {
 
     // 메시지 내용 검색 (좌측 방 목록 검색과 연동, 채팅 패널에서 하이라이트/이동용)
     messageSearchQuery: "" as string,
-    messageSearchMatchCountByRoom: {} as Record<string, number>
+    messageSearchMatchCountByRoom: {} as Record<string, number>,
+
+    // 개인 질문: 팝업 내 답변용 (requestId, 스트리밍 content, 완료 여부)
+    personalJarvisRequestId: "" as string,
+    personalJarvisContent: "" as string,
+    personalJarvisDone: false as boolean
   }),
   getters: {
     activeMessages(state): MessageDto[] {
@@ -414,12 +419,26 @@ export const useSessionStore = defineStore("session", {
       this.ws.send({ type: "room.leave", roomId });
     },
 
-    askJarvis(roomId: string, prompt: string) {
+    askJarvis(roomId: string, prompt: string, isPersonal = false) {
       if (!this.ws) return;
       if (!this.joinedByRoom[roomId]) {
         this.ws.send({ type: "room.join", roomId });
       }
-      this.ws.send({ type: "jarvis.request", roomId, prompt });
+      if (isPersonal) {
+        const requestId = typeof crypto !== "undefined" && crypto.randomUUID ? crypto.randomUUID() : `req-${Date.now()}-${Math.random().toString(36).slice(2, 9)}`;
+        this.personalJarvisRequestId = requestId;
+        this.personalJarvisContent = "";
+        this.personalJarvisDone = false;
+        this.ws.send({ type: "jarvis.request", roomId, prompt, isPersonal: true, requestId });
+      } else {
+        this.ws.send({ type: "jarvis.request", roomId, prompt });
+      }
+    },
+
+    clearPersonalJarvisResponse() {
+      this.personalJarvisRequestId = "";
+      this.personalJarvisContent = "";
+      this.personalJarvisDone = false;
     },
 
     ensureRtcPc(roomId: string) {
@@ -779,6 +798,24 @@ export const useSessionStore = defineStore("session", {
             createdAt: new Date().toISOString()
           };
           this.messagesByRoom[p.roomId] = [...list, stub];
+        }
+        return;
+      }
+
+      if (evt.type === "bot.personal.stream") {
+        const p = evt.payload as { requestId: string; chunk: string };
+        if (p.requestId === this.personalJarvisRequestId) {
+          this.personalJarvisContent += p.chunk;
+        }
+        return;
+      }
+
+      if (evt.type === "bot.personal.done") {
+        const p = evt.payload as { requestId: string; content: string };
+        if (p.requestId === this.personalJarvisRequestId) {
+          this.personalJarvisContent = p.content;
+          this.personalJarvisDone = true;
+          this.personalJarvisRequestId = "";
         }
         return;
       }

@@ -57,7 +57,11 @@ export async function registerWs(app: FastifyInstance) {
   redisSub.on("message", (_channel, payload) => {
     try {
       const evt = JSON.parse(payload);
-      if (evt?.roomId) broadcast(evt.roomId, evt);
+      if (evt?.targetUserId) {
+        sendToUsers([evt.targetUserId], evt);
+      } else if (evt?.roomId) {
+        broadcast(evt.roomId, evt);
+      }
     } catch {
       // ignore
     }
@@ -276,7 +280,9 @@ export async function registerWs(app: FastifyInstance) {
           roomId,
           messageId: msg.messageId ?? null,
           requestedBy: conn.userId,
-          prompt: msg.prompt
+          prompt: msg.prompt,
+          isPersonal: msg.isPersonal ?? false,
+          requestId: msg.requestId ?? null
         });
         return;
       }

@@ -1500,12 +1500,40 @@
               </div>
             </div>
 
+            <!-- 개인 질문 시에만 표시: 팝업 내 답변 영역 -->
+            <div
+              v-if="store.personalJarvisRequestId || store.personalJarvisContent"
+              class="mt-3 rounded border t-border t-row overflow-hidden flex flex-col"
+            >
+              <div class="text-[11px] t-text-subtle mb-1.5 px-3 pt-3 shrink-0">개인 질문 답변</div>
+              <div
+                class="px-3 pb-3 min-h-0 overflow-y-auto t-scrollbar text-sm"
+                style="max-height: 4.5rem; line-height: 1.5"
+              >
+                <div
+                  v-if="store.personalJarvisRequestId && !store.personalJarvisContent"
+                  class="text-sm t-text-muted"
+                >
+                  답변 생성 중...
+                </div>
+                <div
+                  v-else
+                  class="text-sm t-text-muted whitespace-pre-wrap break-words"
+                >
+                  {{ store.personalJarvisContent }}
+                </div>
+              </div>
+            </div>
+
             <div class="mt-3 flex items-center justify-end gap-2">
               <button type="button" class="px-3 py-2 text-sm rounded t-btn-secondary" @click="closeJarvisPopover">
                 취소
               </button>
-              <button type="button" class="px-3 py-2 text-sm rounded t-btn-primary" @click="submitJarvis">
-                질문
+              <button type="button" class="px-3 py-2 text-sm rounded t-btn-secondary" @click="submitJarvisShared">
+                공유 질문
+              </button>
+              <button type="button" class="px-3 py-2 text-sm rounded t-btn-primary" @click="submitJarvisPersonal">
+                개인 질문
               </button>
             </div>
           </div>
@@ -1574,8 +1602,8 @@
     <template #footer>
       <div class="flex items-center justify-end gap-2">
         <button class="px-3 py-2 text-sm rounded t-btn-secondary" @click="closeJarvis">취소</button>
-        <button class="px-3 py-2 text-sm rounded t-btn-primary" @click="submitJarvis">
-          질문
+        <button class="px-3 py-2 text-sm rounded t-btn-primary" @click="submitJarvisShared">
+          공유 질문
         </button>
       </div>
     </template>
@@ -2997,6 +3025,8 @@ const jarvisPopoverOpen = ref(false);
 const jarvisPopover = ref<HTMLDivElement | null>(null);
 const jarvisButton = ref<HTMLButtonElement | null>(null);
 const jarvisPopoverTextarea = ref<HTMLTextAreaElement | null>(null);
+/** 개인 질문 대화 이어가기: 방금 보낸 질문 텍스트 (답변 완료 시 선택 메시지에 추가용) */
+const lastPersonalQuestionText = ref("");
 type JarvisContextItem = {
   key: string;
   content: string;
@@ -3846,12 +3876,11 @@ function closeJarvis() {
 /** AI에게 전달하는 공통 지시: 인사 생략 */
 const JARVIS_NO_GREETING = "인사(안녕하세요 등)는 생략하고 바로 답변해줘.\n\n";
 
-function submitJarvis() {
-  if (!store.activeRoomId) return;
+function buildJarvisPromptBlock(): string {
   const p = jarvisPrompt.value.trim();
-  if (!p) return;
+  if (!p) return "";
   const contexts = currentJarvisContexts.value;
-  const ctxBlock = contexts.length
+  return contexts.length
     ? [
         "아래 메시지들을 참고해서 답해줘.",
         "",
@@ -3864,10 +3893,28 @@ function submitJarvis() {
         p
       ].join("\n")
     : p;
+}
+
+/** 공유 질문: 채팅창에 답변 표시, 팝업 자동 닫힘 */
+function submitJarvisShared() {
+  if (!store.activeRoomId) return;
+  const ctxBlock = buildJarvisPromptBlock();
+  if (!ctxBlock) return;
   jarvisOpen.value = false;
   jarvisPopoverOpen.value = false;
   pendingAiContextRoomId.value = store.activeRoomId;
-  store.askJarvis(store.activeRoomId, JARVIS_NO_GREETING + ctxBlock);
+  store.askJarvis(store.activeRoomId, JARVIS_NO_GREETING + ctxBlock, false);
+}
+
+/** 개인 질문: 팝업 내 답변 영역에만 표시, 팝업 유지. 전송 후 textarea 비우고, 답변 완료 시 다음 질문에서 맥락 유지되도록 선택 메시지에 추가 */
+function submitJarvisPersonal() {
+  if (!store.activeRoomId) return;
+  const ctxBlock = buildJarvisPromptBlock();
+  if (!ctxBlock) return;
+  const userQuestion = jarvisPrompt.value.trim();
+  lastPersonalQuestionText.value = userQuestion;
+  store.askJarvis(store.activeRoomId, JARVIS_NO_GREETING + ctxBlock, true);
+  jarvisPrompt.value = "";
 }
 
 async function openJarvisPopoverWithPrompt(prompt: string) {
@@ -3908,7 +3955,36 @@ async function openJarvisPopoverFromMessage(m: any) {
 
 function closeJarvisPopover() {
   jarvisPopoverOpen.value = false;
+  store.clearPersonalJarvisResponse();
+  lastPersonalQuestionText.value = "";
 }
+
+/** 개인 질문 답변 완료 시: 방금 질문+답변을 선택 메시지에 넣어 다음 개인/공유 질문에서 대화가 이어지도록 */
+watch(
+  () => store.personalJarvisDone,
+  (done) => {
+    if (!done || !lastPersonalQuestionText.value || !store.activeRoomId) return;
+    const rid = store.activeRoomId;
+    const answer = store.personalJarvisContent || "";
+    addJarvisContextToRoom(rid, {
+      content: lastPersonalQuestionText.value,
+      label: "질문",
+      time: formatChatTime(Date.now()),
+      source: "message",
+      createdAt: Date.now()
+    });
+    if (answer) {
+      addJarvisContextToRoom(rid, {
+        content: answer,
+        label: "ai",
+        time: formatChatTime(Date.now()),
+        source: "ai",
+        createdAt: Date.now()
+      });
+    }
+    lastPersonalQuestionText.value = "";
+  }
+);
 
 watch(
   () => store.activeMessages.length,

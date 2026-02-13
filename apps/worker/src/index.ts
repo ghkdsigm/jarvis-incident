@@ -10,6 +10,8 @@ type AiJob = {
   messageId: string | null;
   requestedBy: string;
   prompt: string;
+  isPersonal?: boolean;
+  requestId?: string | null;
 };
 
 type MeetingSummaryJob = {
@@ -96,8 +98,8 @@ const worker = new Worker<AiJob | MeetingSummaryJob>(
       return { ok: true, targetRoomId };
     }
 
-    const { roomId, messageId, requestedBy, prompt } = job.data as AiJob;
-    const requestId = nanoid();
+    const { roomId, messageId, requestedBy, prompt, isPersonal, requestId: clientRequestId } = job.data as AiJob;
+    const requestId = clientRequestId ?? nanoid();
 
     const startedAt = Date.now();
     const aiReq = await prisma.aiRequest.create({
@@ -109,6 +111,43 @@ const worker = new Worker<AiJob | MeetingSummaryJob>(
         status: "running"
       }
     });
+
+    if (isPersonal) {
+      let content = "";
+      await pub.publish(
+        env.pubsubChannel,
+        JSON.stringify({
+          targetUserId: requestedBy,
+          type: "bot.personal.stream",
+          payload: { requestId, chunk: "" }
+        })
+      );
+      const full = await streamAnswer(prompt, async (chunk) => {
+        content += chunk;
+        await pub.publish(
+          env.pubsubChannel,
+          JSON.stringify({
+            targetUserId: requestedBy,
+            type: "bot.personal.stream",
+            payload: { requestId, chunk }
+          })
+        );
+      });
+      const latencyMs = Date.now() - startedAt;
+      await prisma.aiRequest.update({
+        where: { id: aiReq.id },
+        data: { status: "done", latencyMs }
+      });
+      await pub.publish(
+        env.pubsubChannel,
+        JSON.stringify({
+          targetUserId: requestedBy,
+          type: "bot.personal.done",
+          payload: { requestId, content: full }
+        })
+      );
+      return { ok: true, requestId, personal: true };
+    }
 
     let content = "";
     await pub.publish(env.pubsubChannel, JSON.stringify({ roomId, type: "bot.stream", payload: { requestId, roomId, chunk: "" } }));

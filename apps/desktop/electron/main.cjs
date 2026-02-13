@@ -135,7 +135,7 @@ async function resolveDevUrl() {
 function createWindow() {
   mainWindow = new BrowserWindow({
     width: 980,
-    height: 720,
+    height: 780,
     backgroundColor: "#0a0a0a",
     alwaysOnTop,
     webPreferences: {

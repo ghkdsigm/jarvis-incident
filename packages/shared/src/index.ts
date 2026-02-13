@@ -39,7 +39,9 @@ export const WsJarvisRequestSchema = z.object({
   type: z.literal("jarvis.request"),
   roomId: z.string(),
   messageId: z.string().optional(),
-  prompt: z.string().min(1)
+  prompt: z.string().min(1),
+  isPersonal: z.boolean().optional(),
+  requestId: z.string().optional()
 });
 
 export const WsRoomRenameSchema = z.object({
@@ -106,6 +108,8 @@ export type RoomEvent =
   | { type: "message.deleted"; payload: { roomId: string; messageId: string } }
   | { type: "bot.stream"; payload: { requestId: string; roomId: string; chunk: string } }
   | { type: "bot.done"; payload: MessageDto }
+  | { type: "bot.personal.stream"; payload: { requestId: string; chunk: string } }
+  | { type: "bot.personal.done"; payload: { requestId: string; content: string } }
   | { type: "room.joined"; payload: { roomId: string } }
   | { type: "room.left"; payload: { roomId: string } }
   | { type: "room.updated"; payload: { roomId: string; title: string } }

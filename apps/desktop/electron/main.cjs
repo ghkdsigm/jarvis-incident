@@ -77,6 +77,7 @@ function buildPromptMd(projectName) {
 let mainWindow = null;
 let alwaysOnTop = true;
 let miniMode = false;
+let lastUnreadTotal = 0;
 
 function probeHttp(url) {
   return new Promise((resolve) => {
@@ -135,7 +136,7 @@ async function resolveDevUrl() {
 function createWindow() {
   mainWindow = new BrowserWindow({
     width: 980,
-    height: 780,
+    height: 800,
     backgroundColor: "#0a0a0a",
     alwaysOnTop,
     webPreferences: {
@@ -172,6 +173,11 @@ function createWindow() {
 
   mainWindow.on("closed", () => {
     mainWindow = null;
+  });
+
+  // 포커스 시 작업표시줄 깜빡임 해제
+  mainWindow.on("focus", () => {
+    if (mainWindow && !mainWindow.isDestroyed()) mainWindow.flashFrame(false);
   });
 }
 
@@ -235,6 +241,16 @@ app.whenReady().then(() => {
     miniMode = !miniMode;
     applyMiniMode();
     return miniMode;
+  });
+
+  ipcMain.handle("setUnreadTotal", (_event, total) => {
+    const n = typeof total === "number" && total > 0 ? Math.min(Math.floor(total), 999) : 0;
+    lastUnreadTotal = n;
+    if (process.platform === "darwin") app.setBadgeCount(n);
+    if (mainWindow && !mainWindow.isDestroyed()) {
+      if (n > 0 && !mainWindow.isFocused()) mainWindow.flashFrame(true);
+      else if (n === 0) mainWindow.flashFrame(false);
+    }
   });
 
   ipcMain.handle("saveZip", async (_event, arrayBuffer) => {

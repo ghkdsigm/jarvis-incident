@@ -78,14 +78,22 @@
       <button
         v-for="r in filteredRooms"
         :key="r.id"
-        class="w-full text-left px-3 py-2 border-b t-border t-row"
-        :class="store.activeRoomId === r.id ? 't-row-active' : ''"
+        class="w-full text-left px-3 py-2 border-b t-border t-row room-list-item"
+        :class="[
+          store.activeRoomId === r.id ? 't-row-active' : '',
+          unreadCount(r.id) > 0 ? 'room-list-item--unread' : ''
+        ]"
         :title="r.title"
         @click="store.openRoom(r.id)"
         @contextmenu.prevent="openRoomContextMenu($event, r)"
       >
         <div class="flex items-center justify-between gap-2">
           <div class="min-w-0 flex-1 flex items-center gap-1.5">
+            <span
+              v-if="unreadCount(r.id) > 0"
+              class="room-list-item__unread-dot shrink-0"
+              :aria-label="`읽지 않음 ${unreadCount(r.id)}건`"
+            />
             <span
               v-if="isPinned(r.id)"
               class="shrink-0 inline-flex items-center justify-center text-[10px] opacity-80"
@@ -96,6 +104,7 @@
             </span>
             <div class="text-xs font-medium truncate min-w-0 flex items-center gap-1.5" :class="theme === 'dark' ? 'text-white' : 'text-black'">
               <span class="truncate">{{ r.title }}</span>
+              <span v-if="unreadCount(r.id) > 0" class="room-list-item__unread-badge shrink-0">{{ unreadCount(r.id) > 99 ? '99+' : unreadCount(r.id) }}</span>
               <span v-if="roomSearch.trim() && matchedCountByRoom[r.id]" class="shrink-0 text-[10px] px-1.5 py-0.5 rounded bg-[#00694D]/15 text-[#00694D]" :title="`검색어 '${roomSearch.trim()}' ${matchedCountByRoom[r.id]}건`">{{ matchedCountByRoom[r.id] }}건</span>
             </div>
           </div>
@@ -300,6 +309,12 @@ function getInitials(name: string): string {
 function isPinned(roomId: string | undefined): boolean {
   if (!roomId) return false;
   return (store.pinnedRoomIds ?? []).includes(roomId);
+}
+
+function unreadCount(roomId: string | undefined): number {
+  if (!roomId) return 0;
+  const n = store.unreadCountByRoom?.[roomId];
+  return typeof n === "number" ? n : 0;
 }
 
 function formatRelativeTime(isoOrDate: string | Date | null | undefined): string {
@@ -539,3 +554,39 @@ async function submitCreateRoom() {
   await store.createRoomAndOpen(title);
 }
 </script>
+
+<style scoped>
+.room-list-item--unread {
+  background: rgba(251, 79, 79, 0.06);
+}
+.room-list-item--unread:not(.t-row-active) {
+  border-left: 3px solid #fb4f4f;
+}
+.room-list-item__unread-dot {
+  width: 8px;
+  height: 8px;
+  min-width: 8px;
+  border-radius: 50%;
+  background: #fb4f4f;
+  animation: room-unread-pulse 1.5s ease-in-out infinite;
+}
+.room-list-item__unread-badge {
+  font-size: 10px;
+  font-weight: 600;
+  min-width: 1.25rem;
+  padding: 0 5px;
+  line-height: 1.25rem;
+  border-radius: 10px;
+  background: #fb4f4f;
+  color: #fff;
+}
+@keyframes room-unread-pulse {
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.5;
+  }
+}
+</style>

@@ -44,6 +44,9 @@ export const useSessionStore = defineStore("session", {
     messageSearchQuery: "" as string,
     messageSearchMatchCountByRoom: {} as Record<string, number>,
 
+    // 채팅방별 읽지 않음 개수 (다른 방에서 새 메시지 도착 시 증가, 해당 방 열면 0으로 초기화)
+    unreadCountByRoom: {} as Record<string, number>,
+
     // 개인 질문: 팝업 내 답변용 (requestId, 스트리밍 content, 완료 여부)
     personalJarvisRequestId: "" as string,
     personalJarvisContent: "" as string,
@@ -55,6 +58,10 @@ export const useSessionStore = defineStore("session", {
     },
     activeRoom(state): any | null {
       return state.rooms.find((r) => r.id === state.activeRoomId) ?? null;
+    },
+    totalUnread(state): number {
+      const byRoom = state.unreadCountByRoom ?? {};
+      return Object.values(byRoom).reduce((sum, n) => sum + (typeof n === "number" ? n : 0), 0);
     }
   },
   actions: {
@@ -121,6 +128,12 @@ export const useSessionStore = defineStore("session", {
     clearMessageSearch() {
       this.messageSearchQuery = "";
       this.messageSearchMatchCountByRoom = {};
+    },
+
+    incrementUnread(roomId: string) {
+      if (!roomId) return;
+      const prev = this.unreadCountByRoom[roomId] ?? 0;
+      this.unreadCountByRoom = { ...this.unreadCountByRoom, [roomId]: prev + 1 };
     },
 
     async initAuth() {
@@ -250,6 +263,7 @@ export const useSessionStore = defineStore("session", {
       this.activeRoomId = "";
       this.messagesByRoom = {};
       this.joinedByRoom = {};
+      this.unreadCountByRoom = {};
       this.pinnedRoomIds = [];
       this.cleanupRtc(true);
     },
@@ -317,6 +331,7 @@ export const useSessionStore = defineStore("session", {
 
       this.activeRoomId = roomId;
       this.joinedByRoom[roomId] = false;
+      this.unreadCountByRoom = { ...this.unreadCountByRoom, [roomId]: 0 };
       this.ws.send({ type: "room.join", roomId });
       const msgs = await fetchMessages(this.token, roomId);
       this.messagesByRoom[roomId] = msgs;
@@ -556,6 +571,8 @@ export const useSessionStore = defineStore("session", {
         this.messagesByRoom = restM;
         const { [roomId]: _j, ...restJ } = this.joinedByRoom;
         this.joinedByRoom = restJ;
+        const { [roomId]: _u, ...restU } = this.unreadCountByRoom;
+        this.unreadCountByRoom = restU;
 
         if (this.activeRoomId === roomId) {
           this.activeRoomId = "";
@@ -699,6 +716,7 @@ export const useSessionStore = defineStore("session", {
               this.rooms = this.rooms.map((r) => (r.id === m.roomId ? { ...r, lastMessageAt: at } : r));
               this.applyRoomOrdering();
             }
+            if (m.roomId !== this.activeRoomId) this.incrementUnread(m.roomId);
             return;
           }
         }
@@ -730,6 +748,7 @@ export const useSessionStore = defineStore("session", {
           this.rooms = this.rooms.map((r) => (r.id === m.roomId ? { ...r, lastMessageAt: at } : r));
           this.applyRoomOrdering();
         }
+        if (m.roomId !== this.activeRoomId && !(m.senderType === "user" && m.senderUserId === this.user?.id)) this.incrementUnread(m.roomId);
         return;
       }
 
@@ -767,12 +786,15 @@ export const useSessionStore = defineStore("session", {
 
       if (evt.type === "room.deleted") {
         const p = evt.payload as { roomId: string };
-        this.rooms = this.rooms.filter((r) => r.id !== p.roomId);
-        if (this.pinnedRoomIds?.includes(p.roomId)) {
-          this.pinnedRoomIds = this.pinnedRoomIds.filter((x) => x !== p.roomId);
+        const roomId = p.roomId;
+        this.rooms = this.rooms.filter((r) => r.id !== roomId);
+        const { [roomId]: _u, ...restU } = this.unreadCountByRoom;
+        this.unreadCountByRoom = restU;
+        if (this.pinnedRoomIds?.includes(roomId)) {
+          this.pinnedRoomIds = this.pinnedRoomIds.filter((x) => x !== roomId);
           this.persistPinnedRooms();
         }
-        if (this.activeRoomId === p.roomId) {
+        if (this.activeRoomId === roomId) {
           this.activeRoomId = "";
           // best-effort: open first remaining room
           if (this.rooms.length) this.openRoom(this.rooms[0].id);

@@ -264,6 +264,22 @@
                   <button
                     type="button"
                     class="ml-auto h-5 w-5 inline-flex items-center justify-center rounded t-btn-secondary shrink-0 bg-transparent border-0"
+                    title="이 메시지로 Devil's Advocate (비판·보완 분석)"
+                    aria-label="이 메시지로 Devil's Advocate (비판·보완 분석)"
+                    :disabled="isDeleted(m)"
+                    @pointerdown.stop
+                    @click.stop="openDevilsAdvocateFromMessage(m)"
+                  >
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+                      <circle cx="12" cy="11" r="5" stroke="currentColor" stroke-width="1.5" />
+                      <path d="M8 7Q6 4 8 2" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" />
+                      <path d="M16 7Q18 4 16 2" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" />
+                      <path d="M10 11h4M12 9v2" stroke="currentColor" stroke-width="1.2" stroke-linecap="round" />
+                    </svg>
+                  </button>
+                  <button
+                    type="button"
+                    class="h-5 w-5 inline-flex items-center justify-center rounded t-btn-secondary shrink-0 bg-transparent border-0"
                     title="이 메시지로 AI 질문/요청"
                     aria-label="이 메시지로 AI 질문/요청"
                     @pointerdown.stop
@@ -1401,7 +1417,7 @@
           <div
             v-if="jarvisPopoverOpen"
             ref="jarvisPopover"
-            class="jarvis-popover absolute bottom-full mb-2 right-0 w-[440px] max-w-[92vw] rounded border t-border t-surface shadow-lg p-3"
+            class="jarvis-popover absolute bottom-full mb-2 right-0 w-[500px] max-w-[92vw] rounded border t-border t-surface shadow-lg p-3"
             @pointerdown.stop
           >
             <div class="flex items-center justify-between gap-2 mb-2">
@@ -3926,6 +3942,21 @@ function closeJarvis() {
 /** AI에게 전달하는 공통 지시: 인사 생략 */
 const JARVIS_NO_GREETING = "인사(안녕하세요 등)는 생략하고 바로 답변해줘.\n\n";
 
+/** Devil's Advocate: 위 메시지(아이디어)에 대한 비판·보완 분석 요청 프롬프트 */
+const DEVILS_ADVOCATE_PROMPT = `위 메시지(아이디어)에 대해 Devil's Advocate 역할로 비판과 보완 관점에서 아래 형식에 맞춰 분석해줘. 인사 없이 바로 본문만 작성해줘.
+
+**치명적 리스크 3개**
+(이 아이디어가 실패하거나 역효과를 낼 수 있는 치명적 위험 3가지)
+
+**반례/실패사례 2개**
+(비슷한 시도가 실패했거나 반례가 된 사례 2가지)
+
+**비용·일정·조직 리스크**
+(비용, 일정, 조직 측면에서의 리스크와 걸림돌)
+
+**"이 질문에 답 못하면 보류" 질문 5개**
+(이 아이디어를 진행하기 전 반드시 답해야 할 질문 5개. 답하지 못하면 보류해야 하는 수준의 질문)`;
+
 function buildJarvisPromptBlock(): string {
   const p = jarvisPrompt.value.trim();
   if (!p) return "";
@@ -4001,6 +4032,32 @@ async function openJarvisPopoverFromMessage(m: any) {
   jarvisPrompt.value = "";
   await nextTick();
   focusJarvisPrompt();
+}
+
+/** 이 메시지로 Devil's Advocate 분석: 공용 질문으로 전송해 AI 답변이 채팅창에 답장처럼 표시됨 */
+function openDevilsAdvocateFromMessage(m: any) {
+  if (!store.activeRoomId) return;
+  const content = plainTextFromContent(String(m?.content ?? "")).trim();
+  if (!content || content === DELETED_PLACEHOLDER || isDeleted(m)) return;
+  closeEmojiPicker();
+  closeAttachMenu();
+  const rid = store.activeRoomId;
+  clearCurrentRoomJarvisContexts();
+  addJarvisContextToRoom(rid, {
+    content,
+    label: labelFor(m),
+    time: formatChatTime(m?.createdAt),
+    source: "message",
+    messageId: String(m?.id ?? ""),
+    createdAt: Date.now()
+  });
+  const prevPrompt = jarvisPrompt.value;
+  jarvisPrompt.value = DEVILS_ADVOCATE_PROMPT;
+  const ctxBlock = buildJarvisPromptBlock();
+  jarvisPrompt.value = prevPrompt;
+  if (!ctxBlock) return;
+  clearCurrentRoomJarvisContexts();
+  store.askJarvis(rid, JARVIS_NO_GREETING + ctxBlock, false);
 }
 
 function closeJarvisPopover() {

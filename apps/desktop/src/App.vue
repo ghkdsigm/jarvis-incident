@@ -166,4 +166,14 @@ watch(
   },
   { immediate: true }
 );
+
+// 읽지 않음 개수 변경 시 Electron 작업표시줄 배지/깜빡임 연동
+watch(
+  () => store.totalUnread,
+  (total) => {
+    const api = (window as unknown as { jarvisDesktop?: { setUnreadTotal?: (n: number) => void } }).jarvisDesktop;
+    if (typeof api?.setUnreadTotal === "function") api.setUnreadTotal(total);
+  },
+  { immediate: true }
+);
 </script>

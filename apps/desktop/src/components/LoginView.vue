@@ -151,7 +151,7 @@ async function submit() {
 }
 
 function onToggleTheme() {
-  theme.value = toggleTheme();
+  themeStore.toggle();
 }
 </script>
 

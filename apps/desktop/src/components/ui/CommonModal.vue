@@ -54,11 +54,11 @@
 </template>
 
 <script setup lang="ts">
-import { nextTick, onBeforeUnmount, onMounted, ref, watch } from "vue";
-import { getActiveTheme, type ThemeMode } from "../../theme";
+import { computed, nextTick, onBeforeUnmount, ref, watch } from "vue";
+import { useThemeStore } from "../../stores/theme";
 
-const theme = ref<ThemeMode>("dark");
-let themeObserver: MutationObserver | null = null;
+const themeStore = useThemeStore();
+const theme = computed(() => themeStore.theme);
 
 const props = withDefaults(
   defineProps<{
@@ -103,18 +103,8 @@ watch(
   }
 );
 
-onMounted(() => {
-  theme.value = getActiveTheme();
-  themeObserver = new MutationObserver(() => {
-    theme.value = getActiveTheme();
-  });
-  themeObserver.observe(document.documentElement, { attributes: true, attributeFilter: ["data-theme"] });
-});
-
 window.addEventListener("keydown", onGlobalKeydown);
 onBeforeUnmount(() => {
   window.removeEventListener("keydown", onGlobalKeydown);
-  themeObserver?.disconnect();
-  themeObserver = null;
 });
 </script>

@@ -2,7 +2,10 @@ import { createApp } from "vue";
 import { createPinia } from "pinia";
 import App from "./App.vue";
 import "./styles.css";
-import { initTheme } from "./theme";
+import { useThemeStore } from "./stores/theme";
 
-initTheme("dark");
-createApp(App).use(createPinia()).mount("#app");
+const pinia = createPinia();
+const app = createApp(App);
+app.use(pinia);
+useThemeStore(pinia).init();
+app.mount("#app");

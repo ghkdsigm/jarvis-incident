@@ -209,9 +209,9 @@
 
 <script setup lang="ts">
 import { computed, onMounted, ref } from "vue";
-import { getActiveTheme, toggleTheme, type ThemeMode } from "../theme";
 import { useSessionStore } from "../stores/session";
 import { useWindowStore } from "../stores/window";
+import { useThemeStore } from "../stores/theme";
 import CommonModal from "./ui/CommonModal.vue";
 
 const emit = defineEmits<{ (e: "open-rooms"): void; (e: "toggle-calendar"): void }>();
@@ -220,21 +220,21 @@ defineProps<{ calendarActive?: boolean }>();
 
 const store = useSessionStore();
 const windowStore = useWindowStore();
+const themeStore = useThemeStore();
 
 const alwaysOnTop = computed(() => windowStore.alwaysOnTop);
 const miniMode = computed(() => windowStore.miniMode);
-const theme = ref<ThemeMode>("dark");
+const theme = computed(() => themeStore.theme);
 
 const logoutModalOpen = ref(false);
 const logoutModalStep = ref<"confirm" | "done">("confirm");
 
 onMounted(async () => {
-  theme.value = getActiveTheme();
   windowStore.init();
 });
 
 function onToggleTheme() {
-  theme.value = toggleTheme();
+  themeStore.toggle();
 }
 
 function openLogoutConfirm() {

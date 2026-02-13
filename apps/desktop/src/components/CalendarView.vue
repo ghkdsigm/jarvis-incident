@@ -35,9 +35,68 @@
               <path d="M15 18l-6-6 6-6"/>
             </svg>
           </button>
-          <h2 class="text-lg font-bold tabular-nums" :class="theme === 'dark' ? 'text-white' : 'text-[#262626]'">
-            {{ displayYear }}년 {{ displayMonth }}월
-          </h2>
+
+          <div class="relative" ref="yearMonthDropdownRef">
+            <button
+              type="button"
+              class="px-3 py-2 rounded inline-flex items-center gap-1.5 text-lg font-bold tabular-nums min-w-[140px] justify-center transition-colors"
+              :class="theme === 'dark' ? 'text-white hover:bg-zinc-700' : 'text-[#262626] hover:bg-gray-200'"
+              aria-haspopup="listbox"
+              :aria-expanded="yearMonthDropdownOpen"
+              @click.stop="yearMonthDropdownOpen = !yearMonthDropdownOpen"
+            >
+              {{ displayYear }}년 {{ displayMonth + 1 }}월
+              <svg
+                class="w-5 h-5 shrink-0 transition-transform"
+                :class="yearMonthDropdownOpen ? 'rotate-180' : ''"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="2"
+                stroke-linecap="round"
+                stroke-linejoin="round"
+              >
+                <path d="M6 9l6 6 6-6"/>
+              </svg>
+            </button>
+            <div
+              v-show="yearMonthDropdownOpen"
+              class="absolute top-full left-1/2 -translate-x-1/2 mt-1 z-20 rounded-lg border t-border shadow-lg py-3 px-4 min-w-[200px]"
+              :class="theme === 'dark' ? 'bg-zinc-800' : 'bg-white'"
+              role="listbox"
+            >
+              <div class="flex gap-3 items-end">
+                <div class="flex-1">
+                  <label class="block text-xs font-medium mb-1" :class="theme === 'dark' ? 'text-gray-400' : 'text-gray-500'">년</label>
+                  <select
+                    v-model.number="pickerYear"
+                    class="w-full h-9 px-2 rounded border t-border t-input text-sm"
+                    @change="applyYearMonth"
+                  >
+                    <option v-for="y in yearOptions" :key="y" :value="y">{{ y }}년</option>
+                  </select>
+                </div>
+                <div class="flex-1">
+                  <label class="block text-xs font-medium mb-1" :class="theme === 'dark' ? 'text-gray-400' : 'text-gray-500'">월</label>
+                  <select
+                    v-model.number="pickerMonth"
+                    class="w-full h-9 px-2 rounded border t-border t-input text-sm"
+                    @change="applyYearMonth"
+                  >
+                    <option v-for="m in 12" :key="m" :value="m">{{ m }}월</option>
+                  </select>
+                </div>
+              </div>
+              <button
+                type="button"
+                class="w-full mt-3 py-2 text-sm rounded t-btn-primary"
+                @click="applyYearMonthAndClose"
+              >
+                적용
+              </button>
+            </div>
+          </div>
+
           <button
             type="button"
             class="h-9 w-9 inline-flex items-center justify-center rounded t-btn-secondary"
@@ -71,7 +130,7 @@
             :class="[
               cell.isCurrentMonth
                 ? (theme === 'dark' ? 'bg-zinc-900 hover:bg-zinc-800' : 'bg-white hover:bg-gray-50')
-                : (theme === 'dark' ? 'bg-zinc-800/50 text-gray-500' : 'bg-gray-50 text-gray-400'),
+                : (theme === 'dark' ? 'bg-zinc-800/50 text-gray-500' : 'bg-gray-100 text-gray-400'),
               cell.isToday ? 'ring-1 ring-[#00AD50] ring-inset' : ''
             ]"
           >
@@ -215,19 +274,41 @@
 </template>
 
 <script setup lang="ts">
-import { computed, onMounted, ref, watch } from "vue";
-import { getActiveTheme, type ThemeMode } from "../theme";
+import { computed, onBeforeUnmount, onMounted, ref, watch } from "vue";
+import { useThemeStore } from "../stores/theme";
 import { useCalendarStore, type CalendarEvent } from "../stores/calendar";
 import CommonModal from "./ui/CommonModal.vue";
 
-const theme = ref<ThemeMode>("dark");
+const themeStore = useThemeStore();
+const theme = computed(() => themeStore.theme);
 const calendarStore = useCalendarStore();
 
 const currentDate = ref(new Date());
 const displayYear = computed(() => currentDate.value.getFullYear());
-const displayMonth = computed(() => currentDate.value.getMonth());
+const displayMonth = computed(() => currentDate.value.getMonth()); // 0-based
+
+const yearMonthDropdownRef = ref<HTMLElement | null>(null);
+const yearMonthDropdownOpen = ref(false);
+const pickerYear = ref(displayYear.value);
+const pickerMonth = ref(displayMonth.value + 1); // 1-12 for UI
+const thisYear = new Date().getFullYear();
+const yearOptions = Array.from({ length: 21 }, (_, i) => thisYear - 10 + i);
 
 const weekDays = ["일", "월", "화", "수", "목", "금", "토"];
+
+function syncPickerFromCurrent() {
+  pickerYear.value = displayYear.value;
+  pickerMonth.value = displayMonth.value + 1;
+}
+
+function applyYearMonth() {
+  currentDate.value = new Date(pickerYear.value, pickerMonth.value - 1);
+}
+
+function applyYearMonthAndClose() {
+  applyYearMonth();
+  yearMonthDropdownOpen.value = false;
+}
 
 function toDateKey(d: Date): string {
   const y = d.getFullYear();
@@ -281,6 +362,22 @@ const calendarCells = computed(() => {
     });
   }
   return cells;
+});
+
+watch(yearMonthDropdownOpen, (open) => {
+  if (open) syncPickerFromCurrent();
+});
+
+function onDocClick(e: MouseEvent) {
+  const el = yearMonthDropdownRef.value;
+  if (el && !el.contains(e.target as Node)) yearMonthDropdownOpen.value = false;
+}
+
+onMounted(() => {
+  document.addEventListener("click", onDocClick);
+});
+onBeforeUnmount(() => {
+  document.removeEventListener("click", onDocClick);
 });
 
 function prevMonth() {
@@ -362,14 +459,4 @@ function formatDateRange(start: string, end: string): string {
   return `${s} ~ ${e}`;
 }
 
-onMounted(() => {
-  theme.value = getActiveTheme();
-});
-
-watch(
-  () => document.documentElement.dataset.theme,
-  () => {
-    theme.value = getActiveTheme();
-  }
-);
 </script>

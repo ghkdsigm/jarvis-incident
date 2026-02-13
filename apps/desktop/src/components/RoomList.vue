@@ -231,13 +231,12 @@
 <script setup lang="ts">
 import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from "vue";
 import { useSessionStore } from "../stores/session";
-import { getActiveTheme, type ThemeMode } from "../theme";
+import { useThemeStore } from "../stores/theme";
 import CommonModal from "./ui/CommonModal.vue";
 
 const store = useSessionStore();
-
-const theme = ref<ThemeMode>("dark");
-let themeObserver: MutationObserver | null = null;
+const themeStore = useThemeStore();
+const theme = computed(() => themeStore.theme);
 
 const createRoomOpen = ref(false);
 const createRoomTitle = ref("");
@@ -524,16 +523,9 @@ function onKeydown(e: KeyboardEvent) {
 
 onMounted(() => {
   window.addEventListener("keydown", onKeydown);
-  theme.value = getActiveTheme();
-  themeObserver = new MutationObserver(() => {
-    theme.value = getActiveTheme();
-  });
-  themeObserver.observe(document.documentElement, { attributes: true, attributeFilter: ["data-theme"] });
 });
 onBeforeUnmount(() => {
   window.removeEventListener("keydown", onKeydown);
-  themeObserver?.disconnect();
-  themeObserver = null;
 });
 
 function closeCreateRoom() {

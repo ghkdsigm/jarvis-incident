@@ -1897,7 +1897,7 @@
 import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from "vue";
 import { useSessionStore } from "../stores/session";
 import { useWindowStore } from "../stores/window";
-import { getActiveTheme, type ThemeMode } from "../theme";
+import { useThemeStore } from "../stores/theme";
 import { isJarvisTrigger, stripJarvisPrefix } from "@jarvis/shared";
 import {
   createIdeaCard,
@@ -1921,9 +1921,9 @@ import CommonModal from "./ui/CommonModal.vue";
 
 const store = useSessionStore();
 const windowStore = useWindowStore();
+const themeStore = useThemeStore();
 const isMiniMode = computed(() => windowStore.miniMode);
-const theme = ref<ThemeMode>("dark");
-let themeObserver: MutationObserver | null = null;
+const theme = computed(() => themeStore.theme);
 const text = ref("");
 const textInput = ref<HTMLInputElement | null>(null);
 const emojiOpen = ref(false);
@@ -3491,19 +3491,12 @@ onMounted(() => {
   loadJarvisContextsByRoom();
   document.addEventListener("pointerdown", onDocPointerDown);
   document.addEventListener("keydown", onDocKeyDown);
-  theme.value = getActiveTheme();
-  themeObserver = new MutationObserver(() => {
-    theme.value = getActiveTheme();
-  });
-  themeObserver.observe(document.documentElement, { attributes: true, attributeFilter: ["data-theme"] });
 });
 
 onBeforeUnmount(() => {
   document.removeEventListener("pointerdown", onDocPointerDown);
   document.removeEventListener("keydown", onDocKeyDown);
   clearAttachments();
-  themeObserver?.disconnect();
-  themeObserver = null;
 });
 
 type Colleague = {

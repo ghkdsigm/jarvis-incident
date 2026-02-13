@@ -164,6 +164,12 @@ function createWindow() {
     mainWindow.loadFile(path.join(__dirname, "../dist/index.html"));
   }
 
+  // target="_blank" / window.open() 링크를 앱 창 대신 시스템 기본 브라우저에서 열기
+  mainWindow.webContents.setWindowOpenHandler(({ url }) => {
+    if (url && typeof url === "string") shell.openExternal(url);
+    return { action: "deny" };
+  });
+
   mainWindow.on("closed", () => {
     mainWindow = null;
   });
@@ -241,6 +247,11 @@ app.whenReady().then(() => {
     const buffer = Buffer.from(arrayBuffer);
     fs.writeFileSync(filePath, buffer);
     return { canceled: false, filePath };
+  });
+
+  ipcMain.handle("openExternal", (_event, url) => {
+    if (url && typeof url === "string") shell.openExternal(url);
+    return { ok: true };
   });
 
   // --- Claude Code project generation (Electron only) ---

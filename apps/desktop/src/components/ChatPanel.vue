@@ -530,7 +530,12 @@
                         <div class="italic t-text-muted">(삭제된 메시지)</div>
                       </template>
                       <template v-else>
-                        <div v-if="parsedFor(m).text" v-html="highlightedMessageHtml(m)"></div>
+                        <div
+                          v-if="parsedFor(m).text"
+                          class="msg-content-html break-words"
+                          v-html="highlightedMessageHtml(m)"
+                          @click="onMessageContentClick"
+                        ></div>
                         <div v-if="parsedFor(m).attachments.length" class="mt-2 space-y-2">
                           <div
                             v-for="(a, idx) in parsedFor(m).attachments"
@@ -2282,23 +2287,75 @@ function escapeRegex(s: string): string {
   return String(s).replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 }
 
+/** Escapes a string for safe use inside an HTML attribute (e.g. data-href). */
+function escapeAttr(s: string): string {
+  return String(s)
+    .replace(/&/g, "&amp;")
+    .replace(/"/g, "&quot;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;");
+}
+
+/** Unescapes HTML entities (used to recover URL from escaped message HTML). */
+function unescapeHtml(s: string): string {
+  return String(s)
+    .replace(/&amp;/g, "&")
+    .replace(/&lt;/g, "<")
+    .replace(/&gt;/g, ">")
+    .replace(/&quot;/g, '"');
+}
+
+/**
+ * Finds URL-like substrings in already-escaped HTML and wraps them in
+ * clickable links that open in the system browser (Electron) or new tab (web).
+ */
+function linkifyHtml(html: string): string {
+  const urlRe = /https?:\/\/[^\s<&]+(?:&amp;[^\s<&]*)*/g;
+  return html.replace(urlRe, (match) => {
+    const url = unescapeHtml(match).replace(/[.,;:)]+$/, "");
+    const display = match;
+    const safeHref = escapeAttr(url);
+    return `<a class="chat-external-link" href="${safeHref}" target="_blank" rel="noopener noreferrer" style="color:#fff;text-decoration:underline;cursor:pointer;">${display}</a>`;
+  });
+}
+
 function highlightedMessageHtml(m: any): string {
   const text = String(parsedFor(m).text ?? "");
   const q = (store.messageSearchQuery ?? "").trim();
-  if (!q) return escapeHtml(text);
-  try {
-    const re = new RegExp(escapeRegex(q).replace(/\s+/g, "\\s+"), "gi");
-    let result = "";
-    let lastIndex = 0;
-    let match: RegExpExecArray | null;
-    while ((match = re.exec(text)) !== null) {
-      result += escapeHtml(text.slice(lastIndex, match.index)) + '<mark class="bg-yellow-300 dark:bg-yellow-600/60 rounded px-0.5">' + escapeHtml(match[0]) + "</mark>";
-      lastIndex = match.index + match[0].length;
+  let result: string;
+  if (!q) {
+    result = escapeHtml(text);
+  } else {
+    try {
+      const re = new RegExp(escapeRegex(q).replace(/\s+/g, "\\s+"), "gi");
+      let built = "";
+      let lastIndex = 0;
+      let match: RegExpExecArray | null;
+      while ((match = re.exec(text)) !== null) {
+        built += escapeHtml(text.slice(lastIndex, match.index)) + '<mark class="bg-yellow-300 dark:bg-yellow-600/60 rounded px-0.5">' + escapeHtml(match[0]) + "</mark>";
+        lastIndex = match.index + match[0].length;
+      }
+      built += escapeHtml(text.slice(lastIndex));
+      result = built;
+    } catch {
+      result = escapeHtml(text);
     }
-    result += escapeHtml(text.slice(lastIndex));
-    return result;
-  } catch {
-    return escapeHtml(text);
+  }
+  return linkifyHtml(result);
+}
+
+/** 채팅 메시지 내 외부 링크 클릭 시 Electron에서는 PC 브라우저로, 웹에서는 새 탭으로 연다 */
+function onMessageContentClick(ev: MouseEvent) {
+  const link = (ev.target as HTMLElement)?.closest?.(".chat-external-link");
+  if (!link || !(link instanceof HTMLAnchorElement)) return;
+  const url = link.getAttribute("href");
+  if (!url || url.startsWith("#")) return;
+  ev.preventDefault();
+  ev.stopPropagation();
+  if (typeof (window as any).jarvisDesktop?.openExternal === "function") {
+    (window as any).jarvisDesktop.openExternal(url);
+  } else {
+    window.open(url, "_blank", "noopener,noreferrer");
   }
 }
 
@@ -4203,6 +4260,15 @@ watch(
   padding: 6px 10px;
   border-radius: 9999px;
   border: 1px solid var(--border);
+}
+
+.msg-content-html :deep(.chat-external-link) {
+  color: #fff;
+  text-decoration: underline;
+  cursor: pointer;
+}
+.msg-content-html :deep(.chat-external-link:hover) {
+  color: #e5e5e5;
 }
 
 .msg-attach-image {

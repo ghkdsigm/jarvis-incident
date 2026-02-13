@@ -6,6 +6,8 @@ contextBridge.exposeInMainWorld("jarvisDesktop", {
   toggleMiniMode: () => ipcRenderer.invoke("toggleMiniMode"),
   /** Save zip file via native save dialog. Pass ArrayBuffer of zip content. Returns { canceled: boolean, filePath?: string }. */
   saveZip: (arrayBuffer) => ipcRenderer.invoke("saveZip", arrayBuffer),
+  /** Open URL in the system's default browser (e.g. chat message links). */
+  openExternal: (url) => ipcRenderer.invoke("openExternal", url),
 
   // Claude Code project generation (Electron only)
   getGeneratedBasePath: () => ipcRenderer.invoke("getGeneratedBasePath"),

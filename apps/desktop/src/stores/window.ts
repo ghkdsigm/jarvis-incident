@@ -7,6 +7,7 @@ declare global {
       toggleAlwaysOnTop: () => Promise<boolean>;
       toggleMiniMode: () => Promise<boolean>;
       saveZip?: (arrayBuffer: ArrayBuffer) => Promise<{ canceled: boolean; filePath?: string }>;
+      openExternal?: (url: string) => Promise<{ ok: boolean }>;
       getGeneratedBasePath?: () => Promise<string>;
       checkClaudeCli?: () => Promise<{ available: boolean; version?: string | null; error?: string | null }>;
       runClaudeCodeProjectGenerate?: (payload: {

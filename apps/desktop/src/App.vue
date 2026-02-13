@@ -2,7 +2,11 @@
   <LoginView v-if="store.authReady && !store.token" />
 
   <div v-else-if="store.authReady && store.token" class="w-screen h-screen flex flex-col">
-    <TopBar @open-rooms="roomDrawerOpen = true" />
+    <TopBar
+      :calendar-active="showCalendar"
+      @open-rooms="roomDrawerOpen = true"
+      @toggle-calendar="showCalendar = !showCalendar"
+    />
     <div class="flex-1 min-h-0" :class="isMiniMode ? 'flex flex-col' : 'flex'">
       <aside
         v-if="!isMiniMode"
@@ -36,7 +40,8 @@
       </aside>
 
       <main class="flex-1 min-h-0 t-surface">
-        <ChatPanel />
+        <CalendarView v-if="showCalendar" />
+        <ChatPanel v-else />
       </main>
     </div>
 
@@ -82,6 +87,7 @@ import { computed, onBeforeUnmount, onMounted, ref, watch } from "vue";
 import TopBar from "./components/TopBar.vue";
 import RoomList from "./components/RoomList.vue";
 import ChatPanel from "./components/ChatPanel.vue";
+import CalendarView from "./components/CalendarView.vue";
 import LoginView from "./components/LoginView.vue";
 import { useSessionStore } from "./stores/session";
 import { useWindowStore } from "./stores/window";
@@ -93,6 +99,7 @@ const collapsedWidth = 44;
 const sidebarCollapsed = ref(false);
 const sidebarWidth = ref(250);
 const roomDrawerOpen = ref(false);
+const showCalendar = ref(false);
 const sidebarCollapsedSnapshot = ref<boolean | null>(null);
 
 const isMiniMode = computed(() => windowStore.miniMode);

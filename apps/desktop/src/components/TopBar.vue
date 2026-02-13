@@ -35,6 +35,37 @@
       <button
         class="h-8 w-8 inline-flex items-center justify-center rounded border transition-colors"
         :class="
+          calendarActive
+            ? 't-btn-primary border-transparent'
+            : 't-btn-secondary'
+        "
+        title="캘린더"
+        aria-label="캘린더 보기"
+        @click="emit('toggle-calendar')"
+      >
+        <!-- calendar -->
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+          <rect
+            x="3"
+            y="4"
+            width="18"
+            height="18"
+            rx="2"
+            stroke="currentColor"
+            stroke-width="1.8"
+            stroke-linejoin="round"
+          />
+          <path
+            d="M16 2v4M8 2v4M3 10h18"
+            stroke="currentColor"
+            stroke-width="1.8"
+            stroke-linecap="round"
+          />
+        </svg>
+      </button>
+      <button
+        class="h-8 w-8 inline-flex items-center justify-center rounded border transition-colors"
+        :class="
           alwaysOnTop
             ? 't-btn-primary border-transparent'
             : 't-btn-secondary'
@@ -183,7 +214,9 @@ import { useSessionStore } from "../stores/session";
 import { useWindowStore } from "../stores/window";
 import CommonModal from "./ui/CommonModal.vue";
 
-const emit = defineEmits<{ (e: "open-rooms"): void }>();
+const emit = defineEmits<{ (e: "open-rooms"): void; (e: "toggle-calendar"): void }>();
+
+defineProps<{ calendarActive?: boolean }>();
 
 const store = useSessionStore();
 const windowStore = useWindowStore();

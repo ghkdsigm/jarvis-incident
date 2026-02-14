@@ -37,6 +37,7 @@ services:
       REDIS_URL: redis://redis:6379
       AI_QUEUE_NAME: jarvis_ai_jobs
       PUBSUB_CHANNEL: jarvis_room_events
+      CORS_ORIGIN: ${CORS_ORIGIN-}
       HTTP_PROXY: ${HTTP_PROXY-}
       HTTPS_PROXY: ${HTTPS_PROXY-}
       NO_PROXY: ${NO_PROXY-}

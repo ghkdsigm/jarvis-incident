@@ -1,7 +1,7 @@
 import type { FastifyInstance } from "fastify";
 import axios from "axios";
+import { env } from "../lib/env.js";
 
-const HOLIDAY_API_KEY = "3961cf8f4ba38e60c90fb53a3bc524d74ad83ae4fa7ca70750c0fd86577ebb64";
 const HOLIDAY_API_BASE = "http://apis.data.go.kr/B090041/openapi/service/SpcdeInfoService";
 
 export type HolidayInfo = {
@@ -21,8 +21,12 @@ async function fetchHolidaysFromApi(year: number, month?: number): Promise<Holid
     
     // ServiceKey 이중 인코딩 방지: axios params 사용하되 ServiceKey는 그대로 전달
     // paramsSerializer로 ServiceKey만 예외 처리
+    if (!env.holidayApiKey) {
+      throw new Error("Holiday API key not configured");
+    }
+
     const params: Record<string, string> = {
-      ServiceKey: HOLIDAY_API_KEY, // 이미 인코딩된 키일 수 있으므로 그대로 전달
+      ServiceKey: env.holidayApiKey, // 이미 인코딩된 키일 수 있으므로 그대로 전달
       pageNo: "1",
       numOfRows: "100",
       solYear: String(year),
@@ -140,6 +144,10 @@ export async function holidayRoutes(app: FastifyInstance) {
 
     if (month !== undefined && (isNaN(month) || month < 1 || month > 12)) {
       return reply.code(400).send({ error: "Invalid month" });
+    }
+
+    if (!env.holidayApiKey) {
+      return reply.code(501).send({ error: "HOLIDAY_API_NOT_CONFIGURED" });
     }
 
     try {

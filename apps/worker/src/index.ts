@@ -199,3 +199,20 @@ worker.on("failed", async (job, err) => {
     await pub.publish(env.pubsubChannel, JSON.stringify({ roomId, type: "error", payload: { message: err.message } }));
   }
 });
+
+// Graceful shutdown
+const shutdown = async (signal: string) => {
+  console.log(`[Worker] Received ${signal}, shutting down gracefully...`);
+  try {
+    await worker.close();
+    await prisma.$disconnect();
+    await redis.quit();
+    process.exit(0);
+  } catch (err) {
+    console.error("[Worker] Error during shutdown:", err);
+    process.exit(1);
+  }
+};
+
+process.on("SIGINT", () => shutdown("SIGINT"));
+process.on("SIGTERM", () => shutdown("SIGTERM"));

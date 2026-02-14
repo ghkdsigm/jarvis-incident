@@ -277,6 +277,19 @@ export const useSessionStore = defineStore("session", {
       return msgs;
     },
 
+    async loadMoreMessages(roomId: string, take = 50): Promise<MessageDto[]> {
+      if (!this.token) return [];
+      const existing = this.messagesByRoom[roomId] ?? [];
+      if (existing.length === 0) return [];
+      const firstMessage = existing[0];
+      const newMessages = await fetchMessages(this.token, roomId, take, firstMessage.id);
+      if (newMessages.length > 0) {
+        this.messagesByRoom[roomId] = [...newMessages, ...existing];
+        return newMessages;
+      }
+      return [];
+    },
+
     async ensureRoomMembers(roomId: string): Promise<RoomMemberDto[]> {
       if (!this.token) return this.roomMembersByRoom[roomId] ?? [];
       const existing = this.roomMembersByRoom[roomId];

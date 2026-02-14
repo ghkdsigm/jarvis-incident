@@ -186,6 +186,7 @@
             class="h-full overflow-auto space-y-2 t-scrollbar max-w-[1100px] mx-auto"
             :class="isMiniMode ? 'p-2' : 'py-6 px-6'"
             :style="{ opacity: String(chatOpacity) }"
+            @scroll="onScroll"
           >
           <div
             v-if="store.messageSearchQuery && messageSearchMatches.length"
@@ -217,7 +218,7 @@
             </div>
           </div>
           <div
-            v-for="m in store.activeMessages"
+            v-for="m in visibleMessages"
             :key="m.id"
             :ref="(el) => setMessageEl(m.id, el)"
             class="w-full"
@@ -455,7 +456,7 @@
             ref="scrollerLeft"
             class="h-full overflow-auto space-y-2 t-surface t-scrollbar p-3"
             :style="{ opacity: String(chatOpacity) }"
-            @scroll="onScrollLeft"
+            @scroll="(e) => { onScrollLeft(); onScroll(e); }"
           >
             <div
               v-if="store.messageSearchQuery && messageSearchMatches.length"
@@ -469,7 +470,7 @@
               </div>
             </div>
             <div
-              v-for="m in store.activeMessages"
+              v-for="m in visibleMessages"
               :key="m.id"
               :ref="(el) => setMessageEl(m.id, el)"
               class="w-full"
@@ -635,9 +636,9 @@
             ref="scrollerRight"
             class="h-full overflow-auto space-y-2 t-surface t-scrollbar p-3"
             :style="{ opacity: String(chatOpacity) }"
-            @scroll="onScrollRight"
+            @scroll="(e) => { onScrollRight(); onScroll(e); }"
           >
-            <div v-for="m in store.activeMessages" :key="'tr:' + m.id" class="w-full" @contextmenu.prevent="onMessageContextMenu($event, m)">
+            <div v-for="m in visibleMessages" :key="'tr:' + m.id" class="w-full" @contextmenu.prevent="onMessageContextMenu($event, m)">
               <div class="flex" :class="bubbleWrapClass(m)">
                 <div class="max-w-[72%] min-w-0 flex flex-col" :class="bubbleColumnClass(m)">
                   <div class="text-[11px] t-text-subtle flex items-center gap-2 w-full" :class="metaClass(m)">
@@ -2337,6 +2338,19 @@ const messageSearchMatches = computed(() => {
   return msgs.filter((m: any) => String(m?.content ?? "").toLowerCase().includes(q)).map((m: any) => m.id);
 });
 
+// 가상 스크롤링: 메시지가 많을 때만 최근 메시지만 렌더링하여 성능 최적화
+const VIRTUAL_SCROLL_THRESHOLD = 300; // 300개 이상일 때만 가상 스크롤링 활성화
+const VIRTUAL_SCROLL_VISIBLE_COUNT = 200; // 최근 200개만 렌더링
+
+const visibleMessages = computed(() => {
+  const allMessages = store.activeMessages;
+  if (allMessages.length <= VIRTUAL_SCROLL_THRESHOLD) {
+    return allMessages; // 메시지가 적으면 모두 렌더링
+  }
+  // 메시지가 많으면 최근 메시지만 렌더링 (페이지네이션과 함께 사용)
+  return allMessages.slice(-VIRTUAL_SCROLL_VISIBLE_COUNT);
+});
+
 function setMessageEl(id: string, el: any) {
   const target = Array.isArray(el) ? el[0] : el;
   if (target && typeof target === "object" && target instanceof HTMLElement) messageEls.value[id] = target;
@@ -3033,6 +3047,44 @@ function saveTranslationsForRoom(roomId: string) {
   }
 }
 
+const isLoadingMoreMessages = ref(false);
+const hasMoreMessages = ref(true);
+
+async function onScroll(e: Event) {
+  const target = e.target as HTMLDivElement;
+  if (!target) return;
+  
+  // 위로 스크롤했을 때 (상단 근처에 도달했을 때) 추가 메시지 로드
+  const scrollTop = target.scrollTop;
+  const scrollHeight = target.scrollHeight;
+  const clientHeight = target.clientHeight;
+  
+  // 상단에서 200px 이내에 도달하면 추가 로드
+  if (scrollTop < 200 && !isLoadingMoreMessages.value && hasMoreMessages.value && store.activeRoomId) {
+    isLoadingMoreMessages.value = true;
+    try {
+      const previousScrollHeight = scrollHeight;
+      const previousScrollTop = scrollTop;
+      
+      const newMessages = await store.loadMoreMessages(store.activeRoomId, 50);
+      
+      if (newMessages.length === 0) {
+        hasMoreMessages.value = false;
+      } else {
+        // 스크롤 위치 유지 (새 메시지가 위에 추가되므로)
+        await nextTick();
+        const newScrollHeight = target.scrollHeight;
+        const heightDiff = newScrollHeight - previousScrollHeight;
+        target.scrollTop = previousScrollTop + heightDiff;
+      }
+    } catch (error) {
+      console.error("Failed to load more messages:", error);
+    } finally {
+      isLoadingMoreMessages.value = false;
+    }
+  }
+}
+
 function onScrollLeft() {
   if (!isTranslateOn.value) return;
   if (syncingScroll) return;
@@ -3042,6 +3094,9 @@ function onScrollLeft() {
   syncingScroll = true;
   right.scrollTop = left.scrollTop;
   window.setTimeout(() => (syncingScroll = false), 0);
+  
+  // 번역 모드에서도 페이지네이션 적용
+  onScroll({ target: left } as unknown as Event);
 }
 
 function onScrollRight() {
@@ -3053,6 +3108,9 @@ function onScrollRight() {
   syncingScroll = true;
   left.scrollTop = right.scrollTop;
   window.setTimeout(() => (syncingScroll = false), 0);
+  
+  // 번역 모드에서도 페이지네이션 적용
+  onScroll({ target: right } as unknown as Event);
 }
 
 async function translateOneMessage(m: any, runId: number) {

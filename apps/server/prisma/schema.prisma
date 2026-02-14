@@ -68,6 +68,8 @@ model Message {
   room      Room       @relation(fields: [roomId], references: [id], onDelete: Cascade)
   user      User?      @relation(fields: [senderUserId], references: [id], onDelete: SetNull)
   ideaCards IdeaCard[]
+
+  @@index([roomId, createdAt])
 }
 
 model AiRequest {

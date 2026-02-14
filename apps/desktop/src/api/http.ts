@@ -31,9 +31,12 @@ export async function createRoom(
   return await res.json();
 }
 
-export async function fetchMessages(token: string, roomId: string, take = 80): Promise<any[]> {
+export async function fetchMessages(token: string, roomId: string, take = 80, beforeId?: string): Promise<any[]> {
   const url = new URL(`${API_BASE}/rooms/${roomId}/messages`);
   url.searchParams.set("take", String(take));
+  if (beforeId) {
+    url.searchParams.set("beforeId", beforeId);
+  }
   const res = await fetch(url, { headers: { Authorization: `Bearer ${token}` } });
   if (!res.ok) throw new Error(`Messages failed: ${res.status}`);
   return await res.json();

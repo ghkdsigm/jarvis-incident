@@ -15,17 +15,33 @@
       >
         <div class="h-full min-h-0">
           <div v-if="sidebarCollapsed" class="h-full flex items-start justify-center pt-2">
-            <button class="px-2 py-1 text-xs rounded t-btn-secondary" @click="toggleSidebar" title="채팅방 리스트 펼치기">
-              &gt;
+            <button class="px-1 py-1 text-xs rounded t-btn-secondary" @click="toggleSidebar" title="채팅방 리스트 펼치기">
+              <svg width="16" height="18" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+                <path
+                  d="M9 18l6-6-6-6"
+                  stroke="currentColor"
+                  stroke-width="2"
+                  stroke-linecap="round"
+                  stroke-linejoin="round"
+                />
+              </svg>
             </button>
           </div>
           <div v-else class="h-full min-h-0">
             <button
-              class="absolute top-3 right-2 z-10 px-2 py-1 text-xs rounded t-btn-secondary"
+              class="absolute top-3 right-2 z-10 px-1 py-1 text-xs rounded t-btn-secondary"
               @click="toggleSidebar"
               title="채팅방 리스트 접기"
             >
-              &lt;
+              <svg width="16" height="18" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+                <path
+                  d="M15 18l-6-6 6-6"
+                  stroke="currentColor"
+                  stroke-width="2"
+                  stroke-linecap="round"
+                  stroke-linejoin="round"
+                />
+              </svg>
             </button>
             <RoomList />
           </div>

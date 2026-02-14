@@ -67,23 +67,23 @@
             >
               <div class="flex gap-3 items-end">
                 <div class="flex-1">
-                  <label class="block text-xs font-medium mb-1" :class="theme === 'dark' ? 'text-gray-400' : 'text-gray-500'">년</label>
+                  <label class="block text-xs font-medium mb-1" :class="theme === 'dark' ? 'text-gray-400' : 'text-gray-500'"></label>
                   <select
                     v-model.number="pickerYear"
                     class="w-full h-9 px-2 rounded border t-border t-input text-sm"
                     @change="applyYearMonth"
                   >
-                    <option v-for="y in yearOptions" :key="y" :value="y">{{ y }}년</option>
+                    <option v-for="y in yearOptions" :key="y" :value="y">{{ y }}</option>
                   </select>
                 </div>
                 <div class="flex-1">
-                  <label class="block text-xs font-medium mb-1" :class="theme === 'dark' ? 'text-gray-400' : 'text-gray-500'">월</label>
+                  <label class="block text-xs font-medium mb-1" :class="theme === 'dark' ? 'text-gray-400' : 'text-gray-500'"></label>
                   <select
                     v-model.number="pickerMonth"
                     class="w-full h-9 px-2 rounded border t-border t-input text-sm"
                     @change="applyYearMonth"
                   >
-                    <option v-for="m in 12" :key="m" :value="m">{{ m }}월</option>
+                    <option v-for="m in 12" :key="m" :value="m">{{ m }}</option>
                   </select>
                 </div>
               </div>
@@ -139,14 +139,26 @@
               :class="
                 cell.isToday
                   ? 'bg-[#00AD50] text-white'
-                  : cell.isCurrentMonth
-                    ? (theme === 'dark' ? 'text-white' : 'text-[#262626]')
-                    : ''
+                  : cell.holiday
+                    ? 'text-red-500 font-semibold'
+                    : cell.isCurrentMonth
+                      ? (theme === 'dark' ? 'text-white' : 'text-[#262626]')
+                      : ''
               "
+              :title="cell.holiday ? cell.holiday.name : ''"
             >
               {{ cell.day }}
             </div>
             <div class="flex-1 space-y-0.5 overflow-hidden">
+              <!-- 공휴일 표시 -->
+              <div
+                v-if="cell.holiday && cell.isCurrentMonth"
+                class="w-full text-left px-1.5 py-0.5 rounded text-[11px] truncate block bg-red-50 dark:bg-red-900/20 text-red-600 dark:text-red-400 font-medium"
+                :title="cell.holiday.name"
+              >
+                {{ cell.holiday.name }}
+              </div>
+              <!-- 일정 표시 -->
               <button
                 v-for="evt in cell.events"
                 :key="evt.id"
@@ -277,11 +289,14 @@
 import { computed, onBeforeUnmount, onMounted, ref, watch } from "vue";
 import { useThemeStore } from "../stores/theme";
 import { useCalendarStore, type CalendarEvent } from "../stores/calendar";
+import { useSessionStore } from "../stores/session";
 import CommonModal from "./ui/CommonModal.vue";
+import { fetchHolidays, type HolidayInfo } from "../api/http";
 
 const themeStore = useThemeStore();
 const theme = computed(() => themeStore.theme);
 const calendarStore = useCalendarStore();
+const sessionStore = useSessionStore();
 
 const currentDate = ref(new Date());
 const displayYear = computed(() => currentDate.value.getFullYear());
@@ -295,6 +310,31 @@ const thisYear = new Date().getFullYear();
 const yearOptions = Array.from({ length: 21 }, (_, i) => thisYear - 10 + i);
 
 const weekDays = ["일", "월", "화", "수", "목", "금", "토"];
+
+// 공휴일 데이터
+const holidays = ref<HolidayInfo[]>([]);
+const holidaysByDate = computed(() => {
+  const map: Record<string, HolidayInfo> = {};
+  holidays.value.forEach((h) => {
+    map[h.date] = h;
+  });
+  return map;
+});
+
+// 공휴일 데이터 로드
+async function loadHolidays(year: number, month: number) {
+  if (!sessionStore.token) {
+    holidays.value = [];
+    return;
+  }
+  try {
+    const data = await fetchHolidays(sessionStore.token, year, month + 1); // month는 0-based이므로 +1
+    holidays.value = data; // 서버에서 이미 필터링됨
+  } catch (error) {
+    console.error("Failed to load holidays:", error);
+    holidays.value = [];
+  }
+}
 
 function syncPickerFromCurrent() {
   pickerYear.value = displayYear.value;
@@ -325,7 +365,7 @@ const calendarCells = computed(() => {
   const startDow = first.getDay();
   const daysInMonth = last.getDate();
 
-  const cells: { key: string; day: number; dateKey: string; isCurrentMonth: boolean; isToday: boolean; events: CalendarEvent[] }[] = [];
+  const cells: { key: string; day: number; dateKey: string; isCurrentMonth: boolean; isToday: boolean; events: CalendarEvent[]; holiday: HolidayInfo | null }[] = [];
   const eventsByDate = calendarStore.eventsByDate;
 
   const totalCells = Math.ceil((startDow + daysInMonth) / 7) * 7;
@@ -352,13 +392,15 @@ const calendarCells = computed(() => {
       isCurrentMonth = false;
     }
     const todayKey = toDateKey(new Date());
+    const holiday = holidaysByDate.value[dateKey] || null;
     cells.push({
       key: dateKey,
       day,
       dateKey,
       isCurrentMonth,
       isToday: dateKey === todayKey,
-      events: eventsByDate[dateKey] ?? []
+      events: eventsByDate[dateKey] ?? [],
+      holiday
     });
   }
   return cells;
@@ -367,6 +409,11 @@ const calendarCells = computed(() => {
 watch(yearMonthDropdownOpen, (open) => {
   if (open) syncPickerFromCurrent();
 });
+
+// 월이 변경될 때마다 공휴일 로드
+watch([displayYear, displayMonth], ([year, month]) => {
+  loadHolidays(year, month);
+}, { immediate: true });
 
 function onDocClick(e: MouseEvent) {
   const el = yearMonthDropdownRef.value;

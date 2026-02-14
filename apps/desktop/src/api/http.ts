@@ -248,6 +248,7 @@ export type RoomNewsItemDto = {
   link: string;
   description: string;
   pubDate: string;
+  imageUrl?: string | null;
 };
 
 export async function fetchRoomNews(
@@ -260,6 +261,31 @@ export async function fetchRoomNews(
   if (!res.ok) {
     const err = await res.json().catch(() => ({}));
     throw new Error((err as any).error ?? `News fetch failed: ${res.status}`);
+  }
+  return await res.json();
+}
+
+/** 한국 공공데이터포털 특일 정보 API (서버 프록시를 통해 호출) */
+export type HolidayInfo = {
+  date: string; // YYYY-MM-DD 형식
+  name: string; // 공휴일 명칭
+  isHoliday: boolean; // 공공기관 휴일여부
+  dateKind: string; // 특일정보의 분류
+};
+
+export async function fetchHolidays(token: string, year: number, month?: number): Promise<HolidayInfo[]> {
+  const url = new URL(`${API_BASE}/holidays`);
+  url.searchParams.set("year", String(year));
+  if (month !== undefined) {
+    url.searchParams.set("month", String(month));
+  }
+
+  const res = await fetch(url.toString(), {
+    headers: { Authorization: `Bearer ${token}` }
+  });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error((err as any).error ?? `Holiday API failed: ${res.status}`);
   }
   return await res.json();
 }

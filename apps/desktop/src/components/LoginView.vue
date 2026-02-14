@@ -116,12 +116,13 @@
 </template>
 
 <script setup lang="ts">
-import { ref } from "vue";
+import { computed, ref } from "vue";
 import { useSessionStore } from "../stores/session";
-import { getActiveTheme, toggleTheme, type ThemeMode } from "../theme";
+import { useThemeStore } from "../stores/theme";
 import bgVideo from "../assets/video/global.mp4";
 
 const store = useSessionStore();
+const themeStore = useThemeStore();
 
 const email = ref(store.savedEmail || "dev1@local");
 const name = ref(store.savedName || "Dev 1");
@@ -129,8 +130,7 @@ const autoLogin = ref(store.autoLoginEnabled);
 
 const loading = ref(false);
 const errorText = ref("");
-const theme = ref<ThemeMode>("dark");
-theme.value = getActiveTheme();
+const theme = computed(() => themeStore.theme);
 
 function ms360Login() {
   // TODO: MS360(OAuth/Entra ID) 인증 플로우 연결

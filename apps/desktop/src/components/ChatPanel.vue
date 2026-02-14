@@ -362,12 +362,37 @@
                     </button>
                   </div>
                 </template>
-                <template v-else>
-                  <template v-if="isDeleted(m)">
-                    <div class="italic t-text-muted">(삭제된 메시지)</div>
-                  </template>
                   <template v-else>
-                    <div v-if="parsedFor(m).text" v-html="highlightedMessageHtml(m)"></div>
+                    <template v-if="isDeleted(m)">
+                      <div class="italic t-text-muted">(삭제된 메시지)</div>
+                    </template>
+                    <template v-else>
+                      <!-- Devil's Advocate 참조 메시지 표시 -->
+                      <div
+                        v-if="isBot(m) && devilsAdvocateSourceMap[m.id]"
+                        class="mb-2 px-2 py-1.5 rounded-lg border t-border t-surface text-xs cursor-pointer hover:opacity-80 transition-opacity"
+                        :class="theme === 'dark' ? 'bg-zinc-800' : 'bg-white'"
+                        @click.stop="scrollToMessage(devilsAdvocateSourceMap[m.id])"
+                      >
+                        <div class="flex items-center gap-2">
+                          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" class="shrink-0">
+                            <path d="M8 4h8a2 2 0 0 1 2 2v12a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2z"/>
+                            <path d="M6 8h12M6 12h12"/>
+                          </svg>
+                          <div class="min-w-0 flex-1">
+                            <div class="t-text-subtle truncate">
+                              {{ getReferencedMessagePreview(devilsAdvocateSourceMap[m.id]) }}
+                            </div>
+                            <div class="t-text-faint text-[10px] mt-0.5">
+                              {{ formatChatTime(getReferencedMessage(devilsAdvocateSourceMap[m.id])?.createdAt) }}
+                            </div>
+                          </div>
+                          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="shrink-0 t-text-muted">
+                            <path d="M7 17L17 7M7 7h10v10"/>
+                          </svg>
+                        </div>
+                      </div>
+                      <div v-if="parsedFor(m).text" v-html="highlightedMessageHtml(m)"></div>
 
                     <div v-if="parsedFor(m).attachments.length" class="mt-2 space-y-2">
                       <div
@@ -1722,7 +1747,7 @@
       <div v-else-if="!roomNewsItems.length" class="py-6 text-center text-sm t-text-subtle">
         현재 주제와 관련된 최신 뉴스가 없습니다.
       </div>
-      <div v-else class="space-y-3">
+      <div v-else class="max-h-[480px] overflow-y-auto t-scrollbar space-y-3">
         <a
           v-for="(item, idx) in roomNewsItems"
           :key="idx"
@@ -1731,11 +1756,23 @@
           rel="noopener noreferrer"
           class="block rounded-lg border t-border t-surface p-3 text-left hover:border-[#00AD50] transition-colors cursor-pointer"
         >
-          <div class="text-sm font-bold truncate" :class="theme === 'dark' ? 'text-white' : 'text-[#262626]'">
-            {{ item.title }}
+          <div class="flex gap-3">
+            <div v-if="item.imageUrl" class="flex-shrink-0">
+              <img
+                :src="item.imageUrl"
+                :alt="item.title"
+                class="w-24 h-24 object-cover rounded border t-border"
+                @error="(e: any) => { e.target.style.display = 'none'; }"
+              />
+            </div>
+            <div class="flex-1 min-w-0">
+              <div class="text-sm font-bold truncate" :class="theme === 'dark' ? 'text-white' : 'text-[#262626]'">
+                {{ item.title }}
+              </div>
+              <div v-if="item.description" class="mt-1 text-xs t-text line-clamp-2">{{ item.description }}</div>
+              <div class="mt-1.5 text-[11px] t-text-muted">{{ formatNewsDate(item.pubDate) }}</div>
+            </div>
           </div>
-          <div v-if="item.description" class="mt-1 text-xs t-text line-clamp-2">{{ item.description }}</div>
-          <div class="mt-1.5 text-[11px] t-text-muted">{{ formatNewsDate(item.pubDate) }}</div>
         </a>
       </div>
     </div>
@@ -2279,6 +2316,11 @@ function isMessageSavedAsCard(m: { id: string }) {
 const messageEls = ref<Record<string, HTMLElement>>({});
 const searchHighlightIndex = ref(0);
 
+// Devil's Advocate 참조 메시지 매핑: AI 답변 메시지 ID -> 원본 메시지 ID
+const devilsAdvocateSourceMap = ref<Record<string, string>>({});
+// 최근 Devil's Advocate 요청의 참조 메시지 ID (다음 bot 메시지와 매핑)
+const pendingDevilsAdvocateSourceId = ref<string | null>(null);
+
 const messageSearchMatches = computed(() => {
   const q = (store.messageSearchQuery ?? "").trim().toLowerCase();
   if (!q) return [];
@@ -2387,6 +2429,28 @@ function scrollToSearchMatch(direction: 1 | -1) {
   if (el) {
     nextTick(() => el.scrollIntoView({ behavior: "smooth", block: "center" }));
   }
+}
+
+function scrollToMessage(messageId: string) {
+  if (!messageId) return;
+  const el = messageEls.value[messageId];
+  if (el) {
+    nextTick(() => el.scrollIntoView({ behavior: "smooth", block: "center" }));
+  }
+}
+
+function getReferencedMessage(messageId: string) {
+  if (!messageId) return null;
+  return store.activeMessages.find((m: any) => m.id === messageId) || null;
+}
+
+function getReferencedMessagePreview(messageId: string): string {
+  const msg = getReferencedMessage(messageId);
+  if (!msg) return "참조된 메시지를 찾을 수 없습니다";
+  const content = plainTextFromContent(String(msg?.content ?? "")).trim();
+  if (!content || content === DELETED_PLACEHOLDER) return "(삭제된 메시지)";
+  const preview = content.length > 60 ? content.slice(0, 60) + "..." : content;
+  return preview;
 }
 
 watch(
@@ -4057,6 +4121,8 @@ function openDevilsAdvocateFromMessage(m: any) {
   jarvisPrompt.value = prevPrompt;
   if (!ctxBlock) return;
   clearCurrentRoomJarvisContexts();
+  // 참조 메시지 ID 저장 (다음 bot 메시지와 매핑)
+  pendingDevilsAdvocateSourceId.value = String(m?.id ?? "");
   store.askJarvis(rid, JARVIS_NO_GREETING + ctxBlock, false);
 }
 
@@ -4117,6 +4183,46 @@ watch(
     });
     pendingAiContextRoomId.value = "";
   }
+);
+
+// Devil's Advocate 참조 메시지 매핑: bot 메시지 생성 시 참조 메시지 ID 저장
+// 마지막 bot 메시지 ID를 추적하여 stub 교체 시에도 감지
+const lastBotMessageId = ref<string | null>(null);
+watch(
+  () => store.activeMessages,
+  (msgs) => {
+    if (!store.activeRoomId) return;
+    if (!pendingDevilsAdvocateSourceId.value) return;
+    if (!msgs.length) return;
+    
+    const last = msgs[msgs.length - 1];
+    if (!last || !isBot(last)) return;
+    
+    const currentBotId = String(last.id ?? "");
+    if (!currentBotId) return;
+    
+    // 이미 처리한 메시지인 경우 스킵
+    if (currentBotId === lastBotMessageId.value) return;
+    
+    // 스트리밍 stub인 경우 ID만 업데이트하고 대기
+    if (currentBotId.startsWith("stream:")) {
+      lastBotMessageId.value = currentBotId;
+      return;
+    }
+    
+    // 실제 메시지가 생성되었거나 stub이 교체된 경우
+    const content = String(last?.content ?? "").trim();
+    if (!content || content === DELETED_PLACEHOLDER) return;
+
+    // 참조 메시지 ID 매핑 저장
+    devilsAdvocateSourceMap.value = {
+      ...devilsAdvocateSourceMap.value,
+      [currentBotId]: pendingDevilsAdvocateSourceId.value
+    };
+    lastBotMessageId.value = currentBotId;
+    pendingDevilsAdvocateSourceId.value = null;
+  },
+  { deep: false }
 );
 
 function openInvite() {

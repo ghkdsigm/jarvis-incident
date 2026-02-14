@@ -9,6 +9,7 @@ import { newsRoutes } from "./routes/news.js";
 import { insightsRoutes } from "./routes/insights.js";
 import { translateRoutes } from "./routes/translate.js";
 import { userRoutes } from "./routes/users.js";
+import { holidayRoutes } from "./routes/holidays.js";
 import { registerWs } from "./ws/hub.js";
 
 const app = Fastify({ logger: true });
@@ -29,6 +30,7 @@ await app.register(newsRoutes);
 await app.register(insightsRoutes);
 await app.register(translateRoutes);
 await app.register(userRoutes);
+await app.register(holidayRoutes);
 await registerWs(app);
 
 app.listen({ port: env.port, host: env.host }).catch((err) => {

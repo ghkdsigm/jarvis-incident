@@ -8,7 +8,7 @@
         </div>
         <div v-if="store.activeRoomId && !isMiniMode" class="flex items-center gap-2 shrink-0">
           <button
-            class="h-8 w-16 inline-flex items-center justify-center rounded"
+            class="h-8 w-20 inline-flex items-center justify-center rounded"
             :class="activePane === 'insights' ? 't-btn-primary' : 't-btn-secondary'"
             title="인사이트 (아이디어 카드/지식 그래프)"
             aria-label="인사이트 (아이디어 카드/지식 그래프)"
@@ -97,11 +97,21 @@
 
     <div v-if="store.activeRoomId && !isMiniMode" class="p-3 border-b t-border t-surface space-y-2">
       <div class="flex items-center justify-between gap-2">
-        <div class="text-xs t-text-muted">
-          화면 공유:
-          <span class="t-text">
-            {{ store.screenShareRoomId === store.activeRoomId ? store.screenShareMode : "idle" }}
-          </span>
+        <div class="flex items-center gap-3">
+          <div class="text-xs t-text-muted">
+            화면 공유:
+            <span class="t-text">
+              {{ store.screenShareRoomId === store.activeRoomId ? store.screenShareMode : "idle" }}
+            </span>
+          </div>
+          <label class="flex items-center gap-1.5 text-xs t-text-muted cursor-pointer">
+            <input
+              type="checkbox"
+              v-model="hideAiMessages"
+              class="w-3.5 h-3.5 rounded border t-border cursor-pointer"
+            />
+            <span>AI 채팅 숨기기</span>
+          </label>
         </div>
         <div class="flex items-center gap-2">
           <button
@@ -1989,6 +1999,7 @@ const isMiniMode = computed(() => windowStore.miniMode);
 const theme = computed(() => themeStore.theme);
 const text = ref("");
 const textInput = ref<HTMLInputElement | null>(null);
+const hideAiMessages = ref(false);
 const emojiOpen = ref(false);
 const emojiPopover = ref<HTMLDivElement | null>(null);
 const emojiButton = ref<HTMLButtonElement | null>(null);
@@ -2343,7 +2354,13 @@ const VIRTUAL_SCROLL_THRESHOLD = 300; // 300개 이상일 때만 가상 스크�
 const VIRTUAL_SCROLL_VISIBLE_COUNT = 200; // 최근 200개만 렌더링
 
 const visibleMessages = computed(() => {
-  const allMessages = store.activeMessages;
+  let allMessages = store.activeMessages;
+  
+  // AI 메시지 숨기기 체크박스가 체크되어 있으면 AI 메시지 필터링
+  if (hideAiMessages.value) {
+    allMessages = allMessages.filter((m: any) => !isBot(m));
+  }
+  
   if (allMessages.length <= VIRTUAL_SCROLL_THRESHOLD) {
     return allMessages; // 메시지가 적으면 모두 렌더링
   }

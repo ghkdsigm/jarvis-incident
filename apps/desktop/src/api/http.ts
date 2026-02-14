@@ -289,3 +289,40 @@ export async function fetchHolidays(token: string, year: number, month?: number)
   }
   return await res.json();
 }
+
+/** 음성 인식 (서버 기반 Whisper API) */
+export async function transcribeAudio(
+  token: string,
+  audioBlob: Blob
+): Promise<{ text: string; language?: string }> {
+  // Blob을 base64로 변환 (FileReader 사용하여 스택 오버플로우 방지)
+  const base64 = await new Promise<string>((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => {
+      // data:audio/webm;base64,xxx 형식에서 base64 부분만 추출
+      const result = reader.result as string;
+      const base64Data = result.includes(',') ? result.split(',')[1] : result;
+      resolve(base64Data);
+    };
+    reader.onerror = reject;
+    reader.readAsDataURL(audioBlob);
+  });
+
+  const res = await fetch(`${API_BASE}/speech/transcribe`, {
+    method: "POST",
+    headers: { 
+      Authorization: `Bearer ${token}`,
+      "Content-Type": "application/json"
+    },
+    body: JSON.stringify({
+      data: base64,
+      mimeType: audioBlob.type || "audio/webm"
+    })
+  });
+  
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error((err as any).error ?? `Transcription failed: ${res.status}`);
+  }
+  return await res.json();
+}

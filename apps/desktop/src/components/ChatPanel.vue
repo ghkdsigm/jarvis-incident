@@ -1515,10 +1515,18 @@
             </div>
 
             <textarea
-              v-model="jarvisPrompt"
               ref="jarvisPopoverTextarea"
               class="w-full min-h-[92px] px-3 py-2 text-sm rounded t-input"
               placeholder="예: 이 메시지 원인 분석해줘 / 다음 액션 아이템 뽑아줘..."
+              @input="(e) => { 
+                const val = (e.target as HTMLTextAreaElement).value; 
+                // 짧은 텍스트만 reactive value에 저장 (긴 텍스트는 DOM에만 저장하여 스택 오버플로우 방지)
+                if (val.length <= 1000) {
+                  jarvisPrompt = val;
+                } else {
+                  jarvisPrompt = '';
+                }
+              }"
             />
 
             <div class="mt-2 space-y-1">
@@ -1966,6 +1974,7 @@ import {
   fetchRoomNews,
   importMeetingSummary,
   translateText,
+  transcribeAudio,
   type RoomNewsItemDto
 } from "../api/http";
 import JSZip from "jszip";
@@ -3356,9 +3365,22 @@ let audioCtx: AudioContext | null = null;
 let analyser: AnalyserNode | null = null;
 let rafId: number | null = null;
 
+// 서버 기반 음성 인식을 위한 MediaRecorder
+let mediaRecorder: MediaRecorder | null = null;
+let audioChunks: Blob[] = [];
+const isRecording = ref(false);
+// 긴 녹음을 위해 텍스트를 직접 저장 (reactive value 사용 안 함)
+let currentTranscriptionText = "";
+
+// Web Speech API (fallback)
 let recognition: any | null = null;
 const listeningTextFinal = ref("");
 const listeningTextInterim = ref("");
+let recognitionRetryCount = 0;
+const MAX_RECOGNITION_RETRIES = 3; // 최대 재시도 횟수
+
+// 서버 기반 음성 인식 사용 여부 (Electron 환경에서는 서버 기반 사용)
+const useServerTranscription = ref(true);
 
 function micBarHeight(i: number) {
   const v = Math.max(0, Math.min(1, micLevel.value));
@@ -3404,7 +3426,10 @@ async function startMicMeter(stream: MediaStream) {
 
 function startSpeechRecognition() {
   const Ctor = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
-  if (!Ctor) return;
+  if (!Ctor) {
+    console.error("[경청] Speech Recognition API를 사용할 수 없습니다.");
+    return;
+  }
 
   recognition = new Ctor();
   recognition.lang = "ko-KR";
@@ -3412,36 +3437,158 @@ function startSpeechRecognition() {
   recognition.interimResults = true;
 
   recognition.onresult = (e: any) => {
+    console.log("[경청] onresult 이벤트 발생, results.length:", e.results.length, "resultIndex:", e.resultIndex);
     let interim = "";
     for (let i = e.resultIndex; i < e.results.length; i++) {
       const r = e.results[i];
       const t = (r?.[0]?.transcript ?? "").trim();
+      console.log("[경청] 결과", i, "isFinal:", r.isFinal, "transcript:", t);
       if (!t) continue;
-      if (r.isFinal) listeningTextFinal.value += (listeningTextFinal.value ? " " : "") + t;
-      else interim += (interim ? " " : "") + t;
+      if (r.isFinal) {
+        listeningTextFinal.value += (listeningTextFinal.value ? " " : "") + t;
+        console.log("[경청] final 텍스트 업데이트:", listeningTextFinal.value);
+      } else {
+        interim += (interim ? " " : "") + t;
+      }
     }
     listeningTextInterim.value = interim.trim();
+    if (interim.trim()) {
+      console.log("[경청] interim 텍스트 업데이트:", listeningTextInterim.value);
+    }
+  };
+  
+  // onend 이벤트에서 마지막 interim 결과를 final로 변환
+  recognition.onend = () => {
+    console.log("[경청] onend 이벤트 발생, isListening:", isListening.value, "retryCount:", recognitionRetryCount);
+    // interim 결과가 있으면 final에 추가
+    if (listeningTextInterim.value.trim()) {
+      listeningTextFinal.value += (listeningTextFinal.value ? " " : "") + listeningTextInterim.value.trim();
+      listeningTextInterim.value = "";
+      console.log("[경청] onend에서 final로 변환:", listeningTextFinal.value);
+      // 텍스트가 있으면 재시도 카운터 리셋
+      recognitionRetryCount = 0;
+    }
+    
+    // continuous 모드에서는 종료 시 자동 재시작 (사용자가 중지하지 않은 경우)
+    if (isListening.value && recognition) {
+      // 재시도 횟수 제한
+      if (recognitionRetryCount >= MAX_RECOGNITION_RETRIES) {
+        console.warn("[경청] 최대 재시도 횟수 도달, 재시도 중단. 네트워크 연결을 확인해주세요.");
+        // 재시도 중단 후에도 사용자가 경청을 계속 사용할 수 있도록 마이크는 유지
+        // 하지만 음성 인식은 작동하지 않음
+        recognitionRetryCount = 0; // 리셋 (사용자가 다시 시작할 수 있도록)
+        return;
+      }
+      
+      recognitionRetryCount++;
+      const retryDelay = Math.min(1000 * recognitionRetryCount, 5000); // 최대 5초
+      console.log("[경청] 자동 재시작 시도... (재시도", recognitionRetryCount, "/", MAX_RECOGNITION_RETRIES, ", 딜레이:", retryDelay, "ms)");
+      
+      setTimeout(() => {
+        if (isListening.value && recognition) {
+          try {
+            recognition.start();
+            console.log("[경청] 자동 재시작 성공");
+          } catch (err: any) {
+            console.error("[경청] 자동 재시작 실패:", err);
+          }
+        }
+      }, retryDelay);
+    }
   };
 
-  recognition.onerror = () => {
+  recognition.onerror = (e: any) => {
+    console.error("[경청] Speech Recognition 오류:", e.error, e.message);
+    
+    // 네트워크 오류는 사용자에게 알림 (재시도 횟수 제한 후)
+    if (e.error === 'network') {
+      if (recognitionRetryCount >= MAX_RECOGNITION_RETRIES) {
+        console.warn("[경청] 네트워크 오류로 음성 인식이 작동하지 않습니다.");
+        // 일렉트론 환경에서는 Web Speech API가 Google 서버에 연결할 수 없어 작동하지 않을 수 있습니다.
+        // 사용자에게 알림 (한 번만 표시)
+        if (!(window as any).__jarvisNetworkErrorShown) {
+          (window as any).__jarvisNetworkErrorShown = true;
+          setTimeout(() => {
+            const isElectron = !!(window as any).electron;
+            const message = isElectron
+              ? "일렉트론 환경에서는 Web Speech API가 작동하지 않을 수 있습니다.\n\n음성 인식 기능을 사용하려면:\n1. 일반 브라우저(Chrome/Edge)에서 사용하거나\n2. 텍스트로 직접 입력해주세요."
+              : "음성 인식 기능을 사용하려면 인터넷 연결이 필요합니다.\n\n현재 네트워크 오류가 발생하여 음성 인식이 작동하지 않습니다.\n인터넷 연결을 확인해주세요.";
+            alert(message);
+            (window as any).__jarvisNetworkErrorShown = false;
+          }, 1000);
+        }
+      }
+    } else if (e.error === 'not-allowed') {
+      console.error("[경청] 마이크 권한이 거부되었습니다.");
+      alert("마이크 권한이 필요합니다. 브라우저 설정에서 마이크 권한을 허용해주세요.");
+    } else if (e.error === 'aborted') {
+      // 사용자가 중지한 경우이므로 무시
+    }
+    // network 오류는 onend에서 자동 재시도됨
     // 권한/환경에 따라 실패할 수 있음. 마이크 레벨 표시는 계속 유지.
+  };
+
+  recognition.onstart = () => {
+    console.log("[경청] Speech Recognition 시작됨");
   };
 
   try {
     recognition.start();
-  } catch {
+    console.log("[경청] recognition.start() 호출됨");
+  } catch (err: any) {
+    console.error("[경청] recognition.start() 실패:", err);
     // start()가 중복 호출되면 예외가 날 수 있음
   }
 }
 
-function stopSpeechRecognition() {
-  if (!recognition) return;
-  try {
-    recognition.stop();
-  } catch {
-    // ignore
-  }
-  recognition = null;
+function stopSpeechRecognition(): Promise<void> {
+  return new Promise((resolve) => {
+    if (!recognition) {
+      resolve();
+      return;
+    }
+    
+    const currentRecognition = recognition;
+    let resolved = false;
+    
+    // onend 이벤트를 기다려서 최종 결과가 모두 처리되도록 함
+    const originalOnEnd = currentRecognition.onend;
+    currentRecognition.onend = () => {
+      // interim 결과를 final로 변환 (원래 핸들러도 이 작업을 하지만, 여기서도 확실하게 처리)
+      if (listeningTextInterim.value.trim()) {
+        listeningTextFinal.value += (listeningTextFinal.value ? " " : "") + listeningTextInterim.value.trim();
+        listeningTextInterim.value = "";
+      }
+      
+      // 원래 핸들러는 실행하지 않음 (자동 재시작을 막기 위해)
+      // 대신 여기서 직접 처리
+      if (!resolved) {
+        resolved = true;
+        recognition = null;
+        resolve();
+      }
+    };
+    
+    // 타임아웃을 추가하여 onend가 호출되지 않는 경우에도 처리
+    setTimeout(() => {
+      if (!resolved) {
+        resolved = true;
+        recognition = null;
+        resolve();
+      }
+    }, 500);
+    
+    try {
+      currentRecognition.stop();
+    } catch {
+      // stop() 실패 시에도 onend가 호출될 수 있지만, 안전하게 처리
+      if (!resolved) {
+        resolved = true;
+        recognition = null;
+        resolve();
+      }
+    }
+  });
 }
 
 function getListeningText() {
@@ -3453,18 +3600,139 @@ async function startListening() {
   if (isListening.value) return;
   listeningTextFinal.value = "";
   listeningTextInterim.value = "";
+  recognitionRetryCount = 0; // 재시도 카운터 리셋
+  currentTranscriptionText = ""; // 전사 텍스트 초기화
 
   micStream = await navigator.mediaDevices.getUserMedia({ audio: true });
   await startMicMeter(micStream);
-  startSpeechRecognition();
+  
+  // 서버 기반 음성 인식 사용
+  if (useServerTranscription.value) {
+    await startServerBasedRecording();
+  } else {
+    // Web Speech API 사용 (fallback)
+    startSpeechRecognition();
+  }
+  
   isListening.value = true;
+}
+
+async function startServerBasedRecording() {
+  if (!micStream) return;
+  
+  try {
+    // MediaRecorder 초기화
+    const options = { mimeType: 'audio/webm' };
+    mediaRecorder = new MediaRecorder(micStream, options);
+    audioChunks = [];
+    isRecording.value = true;
+
+    // 전사 완료를 알리기 위한 Promise (전사된 텍스트를 반환)
+    let transcriptionResolver: ((value: string) => void) | null = null;
+    const transcriptionPromise = new Promise<string>((resolve) => {
+      transcriptionResolver = resolve;
+    });
+    (mediaRecorder as any).__transcriptionPromise = transcriptionPromise;
+
+    mediaRecorder.ondataavailable = (event) => {
+      if (event.data.size > 0) {
+        audioChunks.push(event.data);
+      }
+    };
+
+    mediaRecorder.onstop = async () => {
+      isRecording.value = false;
+      // 녹음이 끝나면 서버로 전송하여 변환
+      let transcribedText = "";
+      if (audioChunks.length > 0) {
+        const audioBlob = new Blob(audioChunks, { type: 'audio/webm' });
+        // 전사 완료를 기다리기 위해 Promise로 처리
+        transcribedText = await processServerTranscription(audioBlob);
+      }
+      audioChunks = [];
+      // 전사 완료 알림 (전사된 텍스트와 함께, 한 번만 호출)
+      if (transcriptionResolver) {
+        transcriptionResolver(transcribedText);
+        transcriptionResolver = null; // 중복 호출 방지
+      }
+    };
+
+    // 녹음 시작
+    mediaRecorder.start();
+    console.log("[경청] 서버 기반 녹음 시작");
+  } catch (err: any) {
+    console.error("[경청] MediaRecorder 초기화 실패:", err);
+    // 실패 시 Web Speech API로 fallback
+    useServerTranscription.value = false;
+    startSpeechRecognition();
+  }
+}
+
+async function processServerTranscription(audioBlob: Blob): Promise<string> {
+  if (!store.token) {
+    console.error("[경청] 인증 토큰이 없습니다.");
+    return "";
+  }
+
+  try {
+    const blobSizeMB = audioBlob.size / (1024 * 1024);
+    console.log(`[경청] 서버로 오디오 전송 중... (크기: ${blobSizeMB.toFixed(2)}MB)`);
+    
+    // 큰 파일 경고 (25MB 이상이면 OpenAI 제한에 걸릴 수 있음)
+    if (blobSizeMB > 25) {
+      alert(`오디오 파일이 너무 큽니다 (${blobSizeMB.toFixed(2)}MB). OpenAI Whisper API는 최대 25MB까지 지원합니다.`);
+      return "";
+    }
+    
+    const result = await transcribeAudio(store.token, audioBlob);
+    const text = result.text.trim();
+    
+    console.log(`[경청] 서버 전사 결과: ${text.length}자`);
+    
+    // 긴 텍스트를 reactive value에 저장하지 않고 직접 변수에 저장
+    // (Vue 반응성 시스템이 큰 텍스트를 처리할 때 스택 오버플로우 방지)
+    currentTranscriptionText = text;
+    
+    return text;
+  } catch (err: any) {
+    console.error("[경청] 서버 전사 실패:", err);
+    alert(`음성 인식 실패: ${err.message}`);
+    return "";
+  }
 }
 
 async function stopListeningAndOpenJarvis() {
   if (!isListening.value) return;
   isListening.value = false;
 
-  stopSpeechRecognition();
+  // 서버 기반 녹음 중지
+  let serverTranscribedText = "";
+  if (useServerTranscription.value && mediaRecorder && isRecording.value) {
+    const transcriptionPromise = (mediaRecorder as any).__transcriptionPromise as Promise<string> | undefined;
+    mediaRecorder.stop();
+    
+    // 전사가 완료될 때까지 대기 (최대 15초)
+    if (transcriptionPromise) {
+      serverTranscribedText = await Promise.race([
+        transcriptionPromise,
+        new Promise<string>(resolve => setTimeout(() => resolve(""), 15000))
+      ]);
+    } else {
+      // Promise가 없으면 잠시 대기
+      await new Promise(resolve => setTimeout(resolve, 2000));
+    }
+  } else {
+    // Web Speech API 사용 중이면
+    // stop() 호출 전에 현재 interim 결과를 final로 변환 (중요!)
+    if (listeningTextInterim.value.trim()) {
+      listeningTextFinal.value += (listeningTextFinal.value ? " " : "") + listeningTextInterim.value.trim();
+      listeningTextInterim.value = "";
+    }
+
+    // 음성 인식이 완전히 종료되고 최종 결과가 처리될 때까지 대기
+    await stopSpeechRecognition();
+  }
+  
   stopMicMeter();
 
   try {
@@ -3483,9 +3751,16 @@ async function stopListeningAndOpenJarvis() {
   analyser = null;
 
   const rid = store.activeRoomId;
-  const transcript = getListeningText().trim();
+  // 서버 기반 전사 결과가 있으면 우선 사용, 없으면 getListeningText() 사용
+  const transcript = (serverTranscribedText || currentTranscriptionText || getListeningText()).trim();
+  const transcriptLength = transcript.length;
+  console.log(`[경청] 전사된 텍스트: ${transcriptLength}자`); // 디버깅용 (긴 텍스트는 콘솔에 전체 출력하지 않음)
+  
+  // reactive value 초기화 (메모리 해제)
   listeningTextFinal.value = "";
   listeningTextInterim.value = "";
+  currentTranscriptionText = ""; // 전사 텍스트 초기화
+  
   if (rid && transcript) {
     addJarvisContextToRoom(rid, {
       content: transcript,
@@ -3497,8 +3772,10 @@ async function stopListeningAndOpenJarvis() {
   }
 
   // 선택 메시지 반영이 돔에 적용된 뒤 AI 질문 팝업 열기, 질문 textarea에는 전사 내용 자동 반영
+  // nextTick()은 한 번만 호출하여 스택 오버플로우 방지
   await nextTick();
-  await openJarvisPopoverWithPrompt(transcript ?? "");
+  console.log(`[경청] 팝업 열기, 전달할 텍스트: ${transcriptLength}자`); // 디버깅용
+  await openJarvisPopoverWithPrompt(transcript);
 }
 
 async function toggleListening() {
@@ -3508,7 +3785,7 @@ async function toggleListening() {
   } catch (e: any) {
     // 권한 거부 등
     isListening.value = false;
-    stopSpeechRecognition();
+    await stopSpeechRecognition();
     stopMicMeter();
     try {
       micStream?.getTracks().forEach((t) => t.stop());
@@ -3526,7 +3803,7 @@ onBeforeUnmount(() => {
     // fire and forget
     stopListeningAndOpenJarvis();
   } else {
-    stopSpeechRecognition();
+    stopSpeechRecognition().catch(() => undefined);
     stopMicMeter();
     try {
       micStream?.getTracks().forEach((t) => t.stop());
@@ -4022,7 +4299,16 @@ const DEVILS_ADVOCATE_PROMPT = `위 메시지(아이디어)에 대해 Devil's Ad
 (이 아이디어를 진행하기 전 반드시 답해야 할 질문 5개. 답하지 못하면 보류해야 하는 수준의 질문)`;
 
 function buildJarvisPromptBlock(): string {
-  const p = jarvisPrompt.value.trim();
+  // 긴 텍스트의 경우 textarea에서 직접 읽기 (Vue 반응성 우회)
+  let p = jarvisPrompt.value.trim();
+  if (!p && jarvisPopoverTextarea.value) {
+    // jarvisPrompt.value가 비어있으면 textarea에서 직접 읽기
+    p = jarvisPopoverTextarea.value.value.trim();
+  }
+  // 모달의 textarea도 확인
+  if (!p && jarvisTextarea.value) {
+    p = jarvisTextarea.value.value.trim();
+  }
   if (!p) return "";
   const contexts = currentJarvisContexts.value;
   return contexts.length
@@ -4064,11 +4350,31 @@ function submitJarvisPersonal() {
 
 async function openJarvisPopoverWithPrompt(prompt: string) {
   if (!store.activeRoomId) return;
+  const promptLength = prompt.length;
+  console.log(`[경청] openJarvisPopoverWithPrompt 호출, prompt: ${promptLength}자`); // 디버깅용 (긴 텍스트는 전체 출력하지 않음)
   closeEmojiPicker();
   closeAttachMenu();
   jarvisPopoverOpen.value = true;
-  jarvisPrompt.value = prompt;
+  
+  // 긴 텍스트의 경우 Vue 반응성 시스템을 우회하여 직접 DOM에 설정
+  // 스택 오버플로우 방지 (1시간 회의 녹음 지원)
   await nextTick();
+  const textarea = jarvisPopoverTextarea.value;
+  if (textarea) {
+    // textarea에 직접 설정 (Vue 반응성 완전 우회)
+    // 긴 텍스트는 v-model 대신 직접 DOM 조작으로 처리
+    textarea.value = prompt;
+    
+    // jarvisPrompt.value는 절대 업데이트하지 않음 (긴 텍스트 스택 오버플로우 방지)
+    // buildJarvisPromptBlock()에서 textarea.value를 직접 읽음
+    jarvisPrompt.value = "";
+  } else {
+    // textarea가 없으면 일반 방식 사용 (짧은 텍스트만)
+    if (promptLength <= 1000) {
+      jarvisPrompt.value = prompt;
+    }
+  }
+  
   focusJarvisPrompt();
 }
 

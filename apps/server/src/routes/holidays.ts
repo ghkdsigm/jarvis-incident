@@ -12,6 +12,56 @@ export type HolidayInfo = {
 };
 
 /**
+ * API 키가 없을 때 사용할 기본 공휴일 목록 (한국의 주요 고정 공휴일)
+ * 음력 기반 공휴일(설날, 추석 등)은 제외하고 양력 고정 공휴일만 포함
+ */
+function getDefaultHolidays(year: number, month?: number): HolidayInfo[] {
+  const holidays: HolidayInfo[] = [];
+  
+  // 1월 1일 - 신정
+  if (!month || month === 1) {
+    holidays.push({ date: `${year}-01-01`, name: "신정", isHoliday: true, dateKind: "01" });
+  }
+  
+  // 3월 1일 - 삼일절
+  if (!month || month === 3) {
+    holidays.push({ date: `${year}-03-01`, name: "삼일절", isHoliday: true, dateKind: "01" });
+  }
+  
+  // 5월 5일 - 어린이날
+  if (!month || month === 5) {
+    holidays.push({ date: `${year}-05-05`, name: "어린이날", isHoliday: true, dateKind: "01" });
+  }
+  
+  // 6월 6일 - 현충일
+  if (!month || month === 6) {
+    holidays.push({ date: `${year}-06-06`, name: "현충일", isHoliday: true, dateKind: "01" });
+  }
+  
+  // 8월 15일 - 광복절
+  if (!month || month === 8) {
+    holidays.push({ date: `${year}-08-15`, name: "광복절", isHoliday: true, dateKind: "01" });
+  }
+  
+  // 10월 3일 - 개천절
+  if (!month || month === 10) {
+    holidays.push({ date: `${year}-10-03`, name: "개천절", isHoliday: true, dateKind: "01" });
+  }
+  
+  // 10월 9일 - 한글날
+  if (!month || month === 10) {
+    holidays.push({ date: `${year}-10-09`, name: "한글날", isHoliday: true, dateKind: "01" });
+  }
+  
+  // 12월 25일 - 크리스마스
+  if (!month || month === 12) {
+    holidays.push({ date: `${year}-12-25`, name: "크리스마스", isHoliday: true, dateKind: "01" });
+  }
+  
+  return holidays;
+}
+
+/**
  * 한국 공공데이터포털 공휴일 정보 API를 호출합니다.
  * getRestDeInfo: 공휴일 조회
  */
@@ -146,8 +196,11 @@ export async function holidayRoutes(app: FastifyInstance) {
       return reply.code(400).send({ error: "Invalid month" });
     }
 
+    // API 키가 없으면 기본 공휴일 목록 반환
     if (!env.holidayApiKey) {
-      return reply.code(501).send({ error: "HOLIDAY_API_NOT_CONFIGURED" });
+      app.log.warn({ year, month }, "Holiday API key not configured, using default holidays");
+      const defaultHolidays = getDefaultHolidays(year, month);
+      return reply.send(defaultHolidays);
     }
 
     try {
@@ -156,14 +209,10 @@ export async function holidayRoutes(app: FastifyInstance) {
       const publicHolidays = holidays.filter((h) => h.isHoliday);
       return reply.send(publicHolidays);
     } catch (err: any) {
-      app.log.error({ err, year, month }, "Holiday API request failed");
-      const errorMessage = err?.message || String(err);
-      const errorStack = err?.stack;
-      return reply.code(502).send({ 
-        error: "HOLIDAY_API_FETCH_FAILED", 
-        message: errorMessage,
-        details: errorStack ? errorStack.split('\n').slice(0, 5).join('\n') : undefined
-      });
+      app.log.error({ err, year, month }, "Holiday API request failed, falling back to default holidays");
+      // API 호출 실패 시 기본 공휴일 목록 반환
+      const defaultHolidays = getDefaultHolidays(year, month);
+      return reply.send(defaultHolidays);
     }
   });
 }

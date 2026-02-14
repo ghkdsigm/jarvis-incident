@@ -5,6 +5,13 @@ const http = require("node:http");
 const os = require("node:os");
 const { spawn } = require("node:child_process");
 
+// Speech Recognition API를 위한 Chromium 플래그 설정
+// Secure Context를 localhost에도 적용
+app.commandLine.appendSwitch('unsafely-treat-insecure-origin-as-secure', 'http://localhost:5173,http://localhost:3000,http://127.0.0.1:5173,http://127.0.0.1:3000');
+app.commandLine.appendSwitch('allow-insecure-localhost');
+// Speech Recognition 활성화
+app.commandLine.appendSwitch('enable-speech-dispatcher');
+
 /** Whitelist: only these commands may be spawned by project generation / open actions */
 const SPAWN_WHITELIST = new Set(["claude", "node", "python", "git", "docker", "code"]);
 
@@ -142,7 +149,11 @@ function createWindow() {
     webPreferences: {
       preload: path.join(__dirname, "preload.cjs"),
       contextIsolation: true,
-      nodeIntegration: false
+      nodeIntegration: false,
+      // Speech Recognition API를 사용하기 위한 설정
+      webSecurity: true, // Speech Recognition은 HTTPS 또는 localhost에서만 작동
+      // Speech Recognition 활성화
+      experimentalFeatures: true
     },
     autoHideMenuBar: true
   });
@@ -201,6 +212,27 @@ function applyMiniMode() {
 
 app.whenReady().then(() => {
   createWindow();
+
+  // Speech Recognition API를 위한 권한 설정
+  // 마이크 권한 자동 허용
+  session.defaultSession.setPermissionRequestHandler((webContents, permission, callback) => {
+    console.log('[Electron] Permission requested:', permission);
+    // 마이크 권한은 허용
+    if (permission === 'media' || permission === 'microphone') {
+      callback(true);
+    } else {
+      callback(false);
+    }
+  });
+
+  // 권한 체크 핸들러
+  session.defaultSession.setPermissionCheckHandler((webContents, permission, requestingOrigin, details) => {
+    console.log('[Electron] Permission check:', permission, requestingOrigin);
+    if (permission === 'media' || permission === 'microphone') {
+      return true;
+    }
+    return false;
+  });
 
   // Electron does not implement getDisplayMedia by default; use desktopCapturer so
   // navigator.mediaDevices.getDisplayMedia() in the renderer works (e.g. screen share).

@@ -95,6 +95,35 @@ export async function roomRoutes(app: FastifyInstance) {
       }
     });
 
+    // 실시간: 초대된 사용자에게 방이 즉시 리스트에 보이도록 user-target 이벤트 발행
+    // (자기 자신은 클라이언트에서 rooms reload로 처리하므로 제외)
+    if (memberUserIds.length > 1) {
+      const roomWithMeta = await prisma.room.findUnique({
+        where: { id: room.id },
+        include: {
+          _count: { select: { members: true } },
+          messages: { orderBy: { createdAt: "desc" }, take: 1, select: { createdAt: true } }
+        }
+      });
+      if (roomWithMeta) {
+        const r: any = roomWithMeta as any;
+        const lastMsg = r.messages?.[0];
+        const lastMessageAt = (lastMsg?.createdAt ?? r.createdAt) as Date;
+        const { messages, _count, ...rest } = r;
+        const roomDto = {
+          ...rest,
+          membersCount: _count?.members ?? 0,
+          lastMessageAt: lastMessageAt.toISOString()
+        };
+
+        for (const targetUserId of memberUserIds) {
+          if (targetUserId === userId) continue;
+          const evt = { type: "room.added", targetUserId, payload: { room: roomDto } };
+          await redisPub.publish(env.pubsubChannel, JSON.stringify(evt));
+        }
+      }
+    }
+
     return room;
   });
 
@@ -222,13 +251,41 @@ export async function roomRoutes(app: FastifyInstance) {
     });
     const memberUserIds = members.map((m) => m.userId);
 
+    // 방 메타(리스트 표시용) 구성: 새로 추가된 사용자는 이 정보로 방 리스트를 즉시 갱신한다.
+    const roomWithMeta = await prisma.room.findUnique({
+      where: { id: roomId },
+      include: {
+        _count: { select: { members: true } },
+        messages: { orderBy: { createdAt: "desc" }, take: 1, select: { createdAt: true } }
+      }
+    });
+    let roomDto: any = null;
+    if (roomWithMeta) {
+      const r: any = roomWithMeta as any;
+      const lastMsg = r.messages?.[0];
+      const lastMessageAt = (lastMsg?.createdAt ?? r.createdAt) as Date;
+      const { messages, _count, ...rest } = r;
+      roomDto = {
+        ...rest,
+        membersCount: _count?.members ?? 0,
+        lastMessageAt: lastMessageAt.toISOString()
+      };
+    }
+
     for (const addedUserId of validUserIds) {
       const userName = userMap.get(addedUserId) ?? "알 수 없음";
       const event = {
         type: "room.member.added",
+        roomId,
         payload: { roomId, userId: addedUserId, userName }
       };
       await redisPub.publish(env.pubsubChannel, JSON.stringify(event));
+
+      // 새로 추가된 사용자에게는 user-target 이벤트로 방이 자동으로 리스트에 추가되도록 알림
+      if (roomDto) {
+        const evt = { type: "room.added", targetUserId: addedUserId, payload: { room: roomDto } };
+        await redisPub.publish(env.pubsubChannel, JSON.stringify(evt));
+      }
     }
 
     return reply.send({ ok: true, added: validUserIds.length, skipped: userIds.length - validUserIds.length });

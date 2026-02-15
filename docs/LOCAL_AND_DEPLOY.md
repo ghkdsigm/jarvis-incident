@@ -63,11 +63,11 @@ DB가 준비될 때까지 몇 초 기다린 뒤 다음 단계로 진행합니다
 ```powershell
 cd <repo-root>\jarvis-incident\apps\server
 copy .env.example .env
-npx prisma generate
-npx prisma migrate deploy
+npm run prisma:generate
+npm run prisma:migrate
 ```
 
-- `prisma migrate deploy`: 기존 마이그레이션(init, user_presence, idea_cards)을 DB에 적용해 테이블을 최신 상태로 맞춥니다.
+- `prisma migrate deploy`: 기존 마이그레이션(init, user_presence, idea_cards 등)을 DB에 적용해 테이블을 최신 상태로 맞춥니다.
 - 이미 같은 DB를 쓰고 있었다면 `migrate dev` 대신 `migrate deploy`로 적용만 해도 됩니다.
 
 서버 실행:

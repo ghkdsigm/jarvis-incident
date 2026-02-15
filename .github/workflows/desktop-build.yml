@@ -26,6 +26,9 @@ jobs:
       - name: Install deps
         run: npm ci
 
+      - name: Build shared package
+        run: npm run -w @jarvis/shared build
+
       - name: Build desktop (electron-builder)
         run: npm run -w @jarvis/desktop build
 

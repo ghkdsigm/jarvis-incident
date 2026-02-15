@@ -150,7 +150,7 @@ export async function newsRoutes(app: FastifyInstance) {
 
     if (!env.naverClientId || !env.naverClientSecret) {
       app.log.warn("Naver News API: NAVER_CLIENT_ID or NAVER_CLIENT_SECRET not set");
-      return reply.send({ items: [] });
+      return reply.code(503).send({ error: "NAVER_NEWS_NOT_CONFIGURED" });
     }
 
     try {

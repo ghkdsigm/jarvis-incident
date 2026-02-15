@@ -189,6 +189,8 @@
             class="w-full h-40 bg-black rounded border t-border object-contain"
             autoplay
             playsinline
+            title="클릭하면 새 창으로 크게 보기"
+            @click="openScreensharePopout"
           />
         </div>
         <div class="space-y-1">
@@ -1296,14 +1298,17 @@
           <div v-if="composerDragActive" class="composer-drop-overlay" aria-hidden="true">
             <div class="composer-drop-overlay-inner">여기에 놓으면 자동 첨부됩니다</div>
           </div>
-          <input
+          <textarea
             v-model="text"
             ref="textInput"
             class="flex-1 px-3 py-2 text-sm rounded t-input"
-            placeholder="메시지 입력 (예: 자비스야 궁금하다 ...)"
-            @keydown.enter="send"
+            placeholder="메시지를 입력하세요."
+            rows="1"
+            style="resize: none"
+            @input="onComposerInput"
+            @keydown="onComposerKeydown"
             @keydown.esc="closeAllComposerPopovers"
-          />
+          ></textarea>
           <button
             ref="attachButton"
             type="button"
@@ -1780,6 +1785,16 @@
       <p class="text-xs t-text-muted">
         채팅방 주제({{ store.activeRoom?.title ?? "이 방" }})를 기준으로 검색한 최신 뉴스입니다.
       </p>
+      <div class="flex items-center justify-end">
+        <button
+          type="button"
+          class="px-2 py-1 text-xs rounded t-btn-secondary"
+          :disabled="roomNewsLoading || !store.activeRoomId"
+          @click="store.activeRoomId && loadRoomNews(store.activeRoomId)"
+        >
+          새로고침
+        </button>
+      </div>
       <div v-if="roomNewsLoading" class="py-6 text-center text-sm t-text-subtle">뉴스를 불러오는 중…</div>
       <div v-else-if="roomNewsError" class="py-4 text-center text-sm text-[#FB4F4F]">{{ roomNewsError }}</div>
       <div v-else-if="!roomNewsItems.length" class="py-6 text-center text-sm t-text-subtle">
@@ -2017,7 +2032,7 @@ const themeStore = useThemeStore();
 const isMiniMode = computed(() => windowStore.miniMode);
 const theme = computed(() => themeStore.theme);
 const text = ref("");
-const textInput = ref<HTMLInputElement | null>(null);
+const textInput = ref<HTMLTextAreaElement | null>(null);
 const hideAiMessages = ref(false);
 const emojiOpen = ref(false);
 const emojiPopover = ref<HTMLDivElement | null>(null);
@@ -2082,7 +2097,7 @@ function splitContent(raw: string): ParsedMessage {
     const list = Array.isArray(parsed) ? parsed : [];
     const attachments: ChatAttachmentPayload[] = list
       .map((x: any) => ({
-        kind: x?.kind === "image" ? "image" : "file",
+        kind: (x?.kind === "image" ? "image" : "file") as "image" | "file",
         name: String(x?.name ?? ""),
         mime: String(x?.mime ?? "application/octet-stream"),
         size: Number(x?.size ?? 0) || 0,
@@ -3222,6 +3237,67 @@ function toggleTranslate() {
 }
 const remoteVideo = ref<HTMLVideoElement | null>(null);
 const localVideo = ref<HTMLVideoElement | null>(null);
+let screensharePopoutWin: Window | null = null;
+
+function syncScreensharePopout(stream: MediaStream | null) {
+  if (!screensharePopoutWin || screensharePopoutWin.closed) {
+    screensharePopoutWin = null;
+    return;
+  }
+  const doc = screensharePopoutWin.document;
+  const video = doc.getElementById("jarvis-screenshare-video") as HTMLVideoElement | null;
+  if (!video) return;
+  (video as any).srcObject = stream ?? null;
+}
+
+function openScreensharePopout() {
+  const stream = store.screenShareRoomId === store.activeRoomId ? store.screenShareRemote : null;
+  if (!stream) return;
+
+  if (screensharePopoutWin && !screensharePopoutWin.closed) {
+    screensharePopoutWin.focus();
+    syncScreensharePopout(stream);
+    return;
+  }
+
+  // NOTE: srcObject 전달을 위해 opener 접근이 필요하므로 noopener를 쓰지 않는다 (데스크톱 앱 내부 사용).
+  const w = window.open("", "jarvis-screenshare-popout", "width=1200,height=800");
+  if (!w) return;
+  screensharePopoutWin = w;
+
+  w.document.open();
+  w.document.write(`<!doctype html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>화면 공유</title>
+    <style>
+      html, body { margin: 0; height: 100%; background: #000; }
+      .wrap { height: 100%; display: flex; align-items: center; justify-content: center; }
+      video { width: 100%; height: 100%; object-fit: contain; background: #000; }
+      .hint { position: fixed; top: 10px; left: 10px; color: rgba(255,255,255,0.75); font: 12px/1.4 system-ui, -apple-system, Segoe UI, Roboto, sans-serif; }
+    </style>
+  </head>
+  <body>
+    <div class="hint">ESC로 닫기</div>
+    <div class="wrap">
+      <video id="jarvis-screenshare-video" autoplay playsinline></video>
+    </div>
+  </body>
+</html>`);
+  w.document.close();
+
+  try {
+    w.addEventListener("keydown", (e: any) => {
+      if (e?.key === "Escape") w.close();
+    });
+  } catch {
+    // ignore
+  }
+
+  syncScreensharePopout(stream);
+}
 
 const DELETED_PLACEHOLDER = "(삭제된 메시지)";
 const LS_CHAT_OPACITY = "jarvis.desktop.chatOpacity";
@@ -3438,8 +3514,42 @@ async function onJarvisContextClick(content: string) {
 }
 
 async function applyJarvisSuggestion(prompt: string) {
-  jarvisPrompt.value = prompt;
+  // NOTE: Jarvis 팝오버 textarea는 긴 텍스트 지원을 위해 v-model을 우회(DOM 직접 설정)하므로,
+  // 여기서는 "모달 textarea"와 "팝오버 textarea" 모두에 값을 반영해 클릭 시 삽입이 항상 동작하도록 한다.
+  jarvisPrompt.value = prompt.length <= 1000 ? prompt : "";
   await nextTick();
+
+  const pop = jarvisPopoverTextarea.value;
+  if (jarvisPopoverOpen.value && pop) {
+    pop.value = prompt;
+    try {
+      pop.setSelectionRange(prompt.length, prompt.length);
+    } catch {
+      // ignore
+    }
+    // buildJarvisPromptBlock()은 DOM에서 직접 읽기도 하므로, input 이벤트를 흉내내 동기화한다.
+    try {
+      pop.dispatchEvent(new Event("input", { bubbles: true }));
+    } catch {
+      // ignore
+    }
+    pop.focus();
+    return;
+  }
+
+  const modal = jarvisTextarea.value;
+  if (jarvisOpen.value && modal) {
+    // v-model 기반 textarea는 reactive 값으로 충분하지만, caret 이동/포커스까지 맞춰준다.
+    modal.value = prompt;
+    try {
+      modal.setSelectionRange(prompt.length, prompt.length);
+    } catch {
+      // ignore
+    }
+    modal.focus();
+    return;
+  }
+
   focusJarvisPrompt();
 }
 
@@ -3978,7 +4088,7 @@ const newsPopupOpen = ref(false);
 const roomNewsItems = ref<RoomNewsItemDto[]>([]);
 const roomNewsLoading = ref(false);
 const roomNewsError = ref("");
-const roomNewsCache = ref<Record<string, { items: RoomNewsItemDto[]; date: string }>>({});
+const roomNewsCache = ref<Record<string, { items: RoomNewsItemDto[]; date: string; query: string }>>({});
 
 function getTodayDateStr() {
   return new Date().toISOString().slice(0, 10);
@@ -3992,9 +4102,11 @@ function openNewsPopup() {
     roomNewsItems.value = [];
     return;
   }
+  const query = String(store.activeRoom?.title ?? "").trim();
   const today = getTodayDateStr();
   const cached = roomNewsCache.value[roomId];
-  if (cached && cached.date === today) {
+  // 빈 결과/제목 변경(=쿼리 변경)은 캐시 사용하지 않고 재조회
+  if (cached && cached.date === today && cached.query === query && cached.items.length > 0) {
     roomNewsItems.value = cached.items;
     return;
   }
@@ -4009,9 +4121,19 @@ async function loadRoomNews(roomId: string) {
   try {
     const { items } = await fetchRoomNews(store.token, roomId);
     roomNewsItems.value = items ?? [];
-    roomNewsCache.value[roomId] = { items: items ?? [], date: getTodayDateStr() };
+    // NOTE: 빈 결과는 캐싱하지 않음(일시 장애/제목 변경 시 '오늘은 계속 없음'처럼 보이는 문제 방지)
+    const q = String(store.activeRoom?.title ?? "").trim();
+    if ((items ?? []).length > 0) roomNewsCache.value[roomId] = { items: items ?? [], date: getTodayDateStr(), query: q };
   } catch (e: any) {
-    roomNewsError.value = e?.message ?? "뉴스를 불러오지 못했습니다.";
+    const code = String(e?.message ?? "");
+    roomNewsError.value =
+      code === "NAVER_NEWS_NOT_CONFIGURED"
+        ? "뉴스 기능이 설정되어 있지 않습니다. (서버 NAVER_CLIENT_ID / NAVER_CLIENT_SECRET 확인)"
+        : code === "NAVER_API_RATE_LIMIT"
+          ? "뉴스 API 호출이 너무 많습니다. 잠시 후 다시 시도해주세요."
+          : code === "NAVER_API_AUTH_FAILED"
+            ? "뉴스 API 인증에 실패했습니다. (서버 NAVER_CLIENT_ID / NAVER_CLIENT_SECRET 확인)"
+            : code || "뉴스를 불러오지 못했습니다.";
     roomNewsItems.value = [];
   } finally {
     roomNewsLoading.value = false;
@@ -4359,10 +4481,51 @@ async function send() {
     text.value = "";
     clearAttachments();
     await nextTick();
+    autoGrowComposer();
     scrollToBottom();
   } finally {
     isSending.value = false;
   }
+}
+
+function onComposerKeydown(e: KeyboardEvent) {
+  // IME 조합 중 Enter는 전송하지 않음
+  if ((e as any).isComposing) return;
+  if (e.key !== "Enter") return;
+
+  // Ctrl+Enter (또는 mac에서 Cmd+Enter)는 줄바꿈 (환경별 기본동작이 다를 수 있어 직접 삽입)
+  if (e.ctrlKey || e.metaKey) {
+    e.preventDefault();
+    insertAtCursor("\n");
+    nextTick(() => autoGrowComposer());
+    return;
+  }
+
+  // Shift+Enter는 줄바꿈 허용
+  if (e.shiftKey) return;
+
+  // Enter는 전송 (textarea 기본 줄바꿈 방지)
+  e.preventDefault();
+  send();
+}
+
+function autoGrowComposer() {
+  const el = textInput.value;
+  if (!el) return;
+  // reset then grow
+  try {
+    el.style.height = "auto";
+    const maxPx = 180;
+    const next = Math.min(el.scrollHeight || 0, maxPx);
+    el.style.height = `${Math.max(40, next)}px`;
+    el.style.overflowY = (el.scrollHeight || 0) > maxPx ? "auto" : "hidden";
+  } catch {
+    // ignore
+  }
+}
+
+function onComposerInput() {
+  autoGrowComposer();
 }
 
 function askJarvisQuick() {
@@ -4725,6 +4888,7 @@ watch(
     await nextTick();
     const show = store.screenShareRoomId === store.activeRoomId ? s : null;
     if (remoteVideo.value) (remoteVideo.value as any).srcObject = show ?? null;
+    syncScreensharePopout(show ?? null);
   },
   { immediate: true }
 );
@@ -4747,6 +4911,16 @@ watch(
     const local = store.screenShareRoomId === store.activeRoomId ? store.screenShareLocal : null;
     if (remoteVideo.value) (remoteVideo.value as any).srcObject = remote ?? null;
     if (localVideo.value) (localVideo.value as any).srcObject = local ?? null;
+    syncScreensharePopout(remote ?? null);
+    // 방이 바뀌어서 더 이상 볼 수 없으면 팝아웃은 닫는다.
+    if (!remote && screensharePopoutWin && !screensharePopoutWin.closed) {
+      try {
+        screensharePopoutWin.close();
+      } catch {
+        // ignore
+      }
+      screensharePopoutWin = null;
+    }
   }
 );
 </script>

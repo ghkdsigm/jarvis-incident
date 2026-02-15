@@ -91,8 +91,8 @@ macOS/Linux:
 
 ```bash
 cd apps/server
-npx prisma generate
-npx prisma migrate dev --name init
+npm run prisma:generate
+npm run prisma:migrate
 npm run dev
 ```
 
@@ -151,6 +151,20 @@ npm run dev
 - 워커에서 `AI_PROVIDER=mock`이면 **가짜 스트리밍 답변**을 생성합니다.
 - 실제 연결은 `AI_PROVIDER=openai` + `OPENAI_API_KEY=...`로 설정하세요.
 
+## 빌드 (CI/CD 및 로컬 검증)
+
+### Desktop 앱 빌드
+Desktop 앱을 빌드하기 전에 shared 패키지를 먼저 빌드해야 합니다.
+
+```bash
+# 루트 디렉토리에서
+npm ci
+npm run -w @jarvis/shared build
+npm run -w @jarvis/desktop build
+```
+
+빌드 결과물은 `apps/desktop/release/` 디렉토리에 생성됩니다.
+
 ## 전체를 도커로 실행(간단 배포/검증용)
 `infra/docker-compose.yml`에는 **server/worker 서비스도 포함**되어 있습니다(컨테이너 내부는 `NODE_ENV=production`).
 
@@ -180,3 +194,22 @@ docker compose up -d
 - `jdbc:postgresql://localhost:5432/jarvis_chat`
 
 > 참고: 값이 다르면 `infra/.env`의 `POSTGRES_DB` / `POSTGRES_USER` / `POSTGRES_PASSWORD`를 우선 확인하세요.
+
+
+#EC2 접속 (터미널로 들어가기)
+Windows PowerShell에서 접속
+ssh -i "C:\Users\ghkdsigm\Desktop\jarvis-key.pem" ubuntu@54.66.155.158
+
+#빌드 결과물을 EC2로 업로드 (scp)
+#공백 문제 피하려고 파일명 먼저 바꾸는 걸 추천.
+Rename-Item "G:\workspace1\jarvis-incident\apps\desktop\release\JarvisChat Setup 0.1.0.exe" "JarvisChat-Setup-0.1.0.exe"
+
+#업로드:
+scp -i "C:\Users\ghkdsigm\Desktop\jarvis-key.pem" `
+  "G:\workspace1\jarvis-incident\apps\desktop\release\JarvisChat-Setup-0.1.0.exe" `
+  ubuntu@54.66.155.158:/home/ubuntu/
+
+#EC2에서 다운로드 폴더로 이동
+sudo mkdir -p /var/www/download
+sudo mv /home/ubuntu/JarvisChat-Setup-0.1.0.exe /var/www/download/
+sudo ls -lh /var/www/download

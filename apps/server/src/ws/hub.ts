@@ -175,6 +175,7 @@ export async function registerWs(app: FastifyInstance) {
           // 참가자 제거 이벤트 브로드캐스트
           const event = {
             type: "room.member.removed",
+            roomId,
             payload: { roomId, userId: conn.userId, userName }
           };
           await redisPub.publish(env.pubsubChannel, JSON.stringify(event));

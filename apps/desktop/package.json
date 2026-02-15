@@ -1,6 +1,8 @@
 {
   "name": "@jarvis/desktop",
   "version": "0.1.0",
+  "description": "JarvisChat desktop client (Electron + Vue)",
+  "author": "Jarvis",
   "private": true,
   "type": "module",
   "main": "electron/main.cjs",
@@ -9,6 +11,8 @@
     "dev": "concurrently -k \"vite\" \"electron .\"",
     "build": "vite build && electron-builder --projectDir ../../ --config electron-builder.desktop.json",
     "build:dir": "vite build && electron-builder --projectDir ../../ --config electron-builder.desktop.json --win --dir",
+    "dist": "npm run build",
+    "dist:dir": "npm run build:dir",
     "lint": "eslint .",
     "test": "vitest run",
     "test:watch": "vitest"

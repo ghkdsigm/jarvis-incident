@@ -10,6 +10,44 @@ const LS_PINNED_ROOMS = "jarvis.desktop.pinnedRooms";
 
 type DevCreds = { email: string; name: string };
 
+// ---- Incoming message sound (no asset file; generate a short beep) ----
+let beepCtx: AudioContext | null = null;
+let lastBeepAt = 0;
+async function playIncomingBeep(durationMs = 950) {
+  const now = Date.now();
+  // throttle to avoid spam (e.g., bursts of messages)
+  if (now - lastBeepAt < 1200) return;
+  lastBeepAt = now;
+
+  try {
+    const Ctx = (window.AudioContext || (window as any).webkitAudioContext) as any;
+    if (!Ctx) return;
+    if (!beepCtx) beepCtx = new Ctx();
+    if (beepCtx.state === "suspended") {
+      await beepCtx.resume().catch(() => {
+        /* ignore */
+      });
+    }
+
+    const osc = beepCtx.createOscillator();
+    const gain = beepCtx.createGain();
+    osc.type = "sine";
+    osc.frequency.value = 880; // A5-ish
+
+    const t0 = beepCtx.currentTime;
+    gain.gain.setValueAtTime(0.0001, t0);
+    gain.gain.exponentialRampToValueAtTime(0.18, t0 + 0.01);
+    gain.gain.exponentialRampToValueAtTime(0.0001, t0 + durationMs / 1000);
+
+    osc.connect(gain);
+    gain.connect(beepCtx.destination);
+    osc.start(t0);
+    osc.stop(t0 + durationMs / 1000 + 0.02);
+  } catch {
+    // ignore (autoplay 정책/기기 문제 등)
+  }
+}
+
 export const useSessionStore = defineStore("session", {
   state: () => ({
     authReady: false as boolean,
@@ -577,6 +615,27 @@ export const useSessionStore = defineStore("session", {
     },
 
     handleEvent(evt: any) {
+      if (evt.type === "room.added") {
+        const room = evt.payload?.room as any | undefined;
+        const roomId = String(room?.id ?? "");
+        if (!roomId) return;
+
+        const exists = this.rooms.some((r) => r.id === roomId);
+        this.rooms = exists ? this.rooms.map((r) => (r.id === roomId ? { ...r, ...room } : r)) : [...this.rooms, room];
+        this.applyRoomOrdering(roomId);
+
+        // 새로 추가된 방은 자동으로 구독(join)해서, 내가 리스트 새로고침을 안 해도 메시지 이벤트를 받도록 한다.
+        if (this.ws && !this.joinedByRoom[roomId]) {
+          this.joinedByRoom[roomId] = false;
+          this.ws.send({ type: "room.join", roomId });
+        }
+        // unread map 초기화
+        if (this.unreadCountByRoom[roomId] == null) {
+          this.unreadCountByRoom = { ...this.unreadCountByRoom, [roomId]: 0 };
+        }
+        return;
+      }
+
       if (evt.type === "room.joined") {
         const roomId = evt.payload?.roomId as string | undefined;
         if (roomId) this.joinedByRoom[roomId] = true;
@@ -731,6 +790,13 @@ export const useSessionStore = defineStore("session", {
         const m = evt.payload as MessageDto;
         const list = this.messagesByRoom[m.roomId] ?? [];
 
+        // 방 목록에 없는 roomId면(=나를 새로 추가했는데 클라가 모르던 방), 즉시 목록을 갱신한다.
+        if (!this.rooms.some((r) => r.id === m.roomId)) {
+          Promise.resolve().then(() => this.reloadRooms()).catch(() => {
+            /* ignore */
+          });
+        }
+
         // bot.done: replace streaming stub so we don't show the same bot reply twice
         if (evt.type === "bot.done") {
           const last = list[list.length - 1];
@@ -743,7 +809,10 @@ export const useSessionStore = defineStore("session", {
               this.rooms = this.rooms.map((r) => (r.id === m.roomId ? { ...r, lastMessageAt: at } : r));
               this.applyRoomOrdering();
             }
-            if (m.roomId !== this.activeRoomId) this.incrementUnread(m.roomId);
+            if (m.roomId !== this.activeRoomId) {
+              this.incrementUnread(m.roomId);
+              playIncomingBeep();
+            }
             return;
           }
         }
@@ -775,7 +844,10 @@ export const useSessionStore = defineStore("session", {
           this.rooms = this.rooms.map((r) => (r.id === m.roomId ? { ...r, lastMessageAt: at } : r));
           this.applyRoomOrdering();
         }
-        if (m.roomId !== this.activeRoomId && !(m.senderType === "user" && m.senderUserId === this.user?.id)) this.incrementUnread(m.roomId);
+        if (m.roomId !== this.activeRoomId && !(m.senderType === "user" && m.senderUserId === this.user?.id)) {
+          this.incrementUnread(m.roomId);
+          playIncomingBeep();
+        }
         return;
       }
 
@@ -879,7 +951,7 @@ export const useSessionStore = defineStore("session", {
           roomId: p.roomId,
           senderType: "system",
           senderUserId: null,
-          content: `${p.userName}님이 참여하였습니다.`,
+          content: `${p.userName}가 추가되었습니다.`,
           createdAt: new Date().toISOString()
         };
         const list = this.messagesByRoom[p.roomId] ?? [];

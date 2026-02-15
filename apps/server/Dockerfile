@@ -28,9 +28,15 @@ COPY apps/desktop/package.json ./apps/desktop/package.json
 COPY packages/shared/package.json ./packages/shared/package.json
 
 # Use lockfile for deterministic builds (Coolify/CI) and always include dev deps for TypeScript build.
-# If npm fails (Coolify often truncates logs), print the latest npm debug log for easier diagnosis.
-RUN npm ci -w @jarvis/shared -w @jarvis/server --include=dev --no-audit --no-fund || ( \
-    echo "npm ci failed; dumping latest npm debug log..." && \
+# Coolify sometimes only shows a short error summary, so we capture npm output and dump it on failure,
+# along with disk usage (common ENOSPC culprit on CI/build servers).
+RUN echo "[build] disk before npm ci:" && df -h / && \
+  echo "[build] npm ci (server+shared)..." && \
+  (npm ci -w @jarvis/shared -w @jarvis/server --include=dev --no-audit --no-fund --loglevel=verbose --timing > /tmp/npm-ci.log 2>&1) || ( \
+    echo "[build] npm ci failed; tailing /tmp/npm-ci.log" && \
+    tail -n 400 /tmp/npm-ci.log || true; \
+    echo "[build] disk after npm ci failure:" && df -h / || true; \
+    echo "[build] latest npm debug log (if any):" && \
     log="$(ls -1t /root/.npm/_logs/*.log 2>/dev/null | head -n1)" && \
     echo "log: ${log:-<none>}" && \
     if [ -n "$log" ]; then tail -n 300 "$log"; fi && \

@@ -225,7 +225,7 @@ export async function registerWs(app: FastifyInstance) {
 
         if (isJarvisTrigger(msg.content)) {
           const prompt = stripJarvisPrefix(msg.content);
-          await aiQueue.add("jarvis", { roomId, messageId: created.id, requestedBy: conn.userId, prompt });
+          await aiQueue.add("jarvis", { roomId, messageId: created.id, requestedBy: conn.userId, prompt, mode: "chat" });
         }
 
         return;
@@ -306,7 +306,8 @@ export async function registerWs(app: FastifyInstance) {
           requestedBy: conn.userId,
           prompt: msg.prompt,
           isPersonal: msg.isPersonal ?? false,
-          requestId: msg.requestId ?? null
+          requestId: msg.requestId ?? null,
+          mode: msg.mode ?? "chat"
         });
         return;
       }

@@ -41,7 +41,8 @@ export const WsJarvisRequestSchema = z.object({
   messageId: z.string().optional(),
   prompt: z.string().min(1),
   isPersonal: z.boolean().optional(),
-  requestId: z.string().optional()
+  requestId: z.string().optional(),
+  mode: z.enum(["chat", "action"]).optional()
 });
 
 export const WsRoomRenameSchema = z.object({

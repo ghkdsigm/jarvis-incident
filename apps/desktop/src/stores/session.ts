@@ -88,7 +88,10 @@ export const useSessionStore = defineStore("session", {
     // 개인 질문: 팝업 내 답변용 (requestId, 스트리밍 content, 완료 여부)
     personalJarvisRequestId: "" as string,
     personalJarvisContent: "" as string,
-    personalJarvisDone: false as boolean
+    personalJarvisDone: false as boolean,
+
+    // UI-triggered popup requests (from worker/tools via WS events)
+    newsSearchPopup: null as null | { roomId: string; query: string; requestedAt: string }
   }),
   getters: {
     activeMessages(state): MessageDto[] {
@@ -499,7 +502,7 @@ export const useSessionStore = defineStore("session", {
       }
     },
 
-    askJarvis(roomId: string, prompt: string, isPersonal = false) {
+    askJarvis(roomId: string, prompt: string, isPersonal = false, mode: "chat" | "action" = "chat") {
       if (!this.ws) return;
       if (!this.joinedByRoom[roomId]) {
         this.ws.send({ type: "room.join", roomId });
@@ -509,9 +512,9 @@ export const useSessionStore = defineStore("session", {
         this.personalJarvisRequestId = requestId;
         this.personalJarvisContent = "";
         this.personalJarvisDone = false;
-        this.ws.send({ type: "jarvis.request", roomId, prompt, isPersonal: true, requestId });
+        this.ws.send({ type: "jarvis.request", roomId, prompt, isPersonal: true, requestId, mode });
       } else {
-        this.ws.send({ type: "jarvis.request", roomId, prompt });
+        this.ws.send({ type: "jarvis.request", roomId, prompt, mode });
       }
     },
 
@@ -519,6 +522,10 @@ export const useSessionStore = defineStore("session", {
       this.personalJarvisRequestId = "";
       this.personalJarvisContent = "";
       this.personalJarvisDone = false;
+    },
+
+    consumeNewsSearchPopup() {
+      this.newsSearchPopup = null;
     },
 
     ensureRtcPc(roomId: string) {
@@ -941,6 +948,15 @@ export const useSessionStore = defineStore("session", {
           this.personalJarvisDone = true;
           this.personalJarvisRequestId = "";
         }
+        return;
+      }
+
+      if (evt.type === "ui.news.search") {
+        const p = evt.payload as { roomId?: string; query?: string };
+        const roomId = String(p?.roomId ?? "");
+        const query = String(p?.query ?? "").trim();
+        if (!roomId || !query) return;
+        this.newsSearchPopup = { roomId, query, requestedAt: new Date().toISOString() };
         return;
       }
 

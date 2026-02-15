@@ -4,6 +4,7 @@ import { env } from "./lib/env.js";
 import { redis, pub } from "./lib/redis.js";
 import { prisma } from "./lib/prisma.js";
 import { streamAnswer } from "./lib/aiProvider.js";
+import { streamAgentAnswer } from "./lib/agentAi.js";
 
 type AiJob = {
   roomId: string;
@@ -12,6 +13,7 @@ type AiJob = {
   prompt: string;
   isPersonal?: boolean;
   requestId?: string | null;
+  mode?: "chat" | "action";
 };
 
 type MeetingSummaryJob = {
@@ -100,6 +102,7 @@ const worker = new Worker<AiJob | MeetingSummaryJob>(
 
     const { roomId, messageId, requestedBy, prompt, isPersonal, requestId: clientRequestId } = job.data as AiJob;
     const requestId = clientRequestId ?? nanoid();
+    const mode = (job.data as AiJob).mode ?? "chat";
 
     const startedAt = Date.now();
     const aiReq = await prisma.aiRequest.create({
@@ -152,10 +155,22 @@ const worker = new Worker<AiJob | MeetingSummaryJob>(
     let content = "";
     await pub.publish(env.pubsubChannel, JSON.stringify({ roomId, type: "bot.stream", payload: { requestId, roomId, chunk: "" } }));
 
-    const full = await streamAnswer(prompt, async (chunk) => {
-      content += chunk;
-      await pub.publish(env.pubsubChannel, JSON.stringify({ roomId, type: "bot.stream", payload: { requestId, roomId, chunk } }));
-    });
+    const full =
+      mode === "action"
+        ? await streamAgentAnswer(
+            prompt,
+            roomId,
+            requestedBy,
+            async (chunk) => {
+              content += chunk;
+              await pub.publish(env.pubsubChannel, JSON.stringify({ roomId, type: "bot.stream", payload: { requestId, roomId, chunk } }));
+            },
+            { useRAG: true, useTools: true, maxToolIterations: 4 }
+          )
+        : await streamAnswer(prompt, async (chunk) => {
+            content += chunk;
+            await pub.publish(env.pubsubChannel, JSON.stringify({ roomId, type: "bot.stream", payload: { requestId, roomId, chunk } }));
+          });
 
     const created = await prisma.message.create({
       data: {

@@ -180,4 +180,37 @@ export async function newsRoutes(app: FastifyInstance) {
       return reply.code(502).send({ error: "NAVER_NEWS_FETCH_FAILED" });
     }
   });
+
+  /**
+   * 임의의 검색어로 뉴스 검색 (팝업/액션용)
+   * - 같은 네이버 뉴스 API를 사용하되, 방 제목이 아니라 사용자가 요청한 query를 그대로 사용합니다.
+   */
+  app.get("/rooms/:roomId/news/search", { preHandler: app.authenticate }, async (req: any, reply) => {
+    const roomId = req.params.roomId as string;
+    const userId = req.user.sub as string;
+    const q = String(req.query?.q ?? "").trim();
+
+    if (!q) return reply.code(400).send({ error: "QUERY_REQUIRED" });
+
+    const membership = await prisma.roomMember.findUnique({
+      where: { roomId_userId: { roomId, userId } }
+    });
+    if (!membership) return reply.code(403).send({ error: "FORBIDDEN" });
+
+    if (!env.naverClientId || !env.naverClientSecret) {
+      app.log.warn("Naver News API: NAVER_CLIENT_ID or NAVER_CLIENT_SECRET not set");
+      return reply.code(503).send({ error: "NAVER_NEWS_NOT_CONFIGURED" });
+    }
+
+    try {
+      const items = await searchNewsWithImages(q);
+      return reply.send({ items });
+    } catch (err: any) {
+      app.log.error({ err }, "Naver News API request failed (search)");
+      const status = err?.response?.status;
+      if (status === 401) return reply.code(502).send({ error: "NAVER_API_AUTH_FAILED" });
+      if (status === 429) return reply.code(429).send({ error: "NAVER_API_RATE_LIMIT" });
+      return reply.code(502).send({ error: "NAVER_NEWS_FETCH_FAILED" });
+    }
+  });
 }

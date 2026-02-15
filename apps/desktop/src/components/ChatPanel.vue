@@ -1612,6 +1612,9 @@
               <button type="button" class="px-3 py-2 text-sm rounded t-btn-secondary" @click="closeJarvisPopover">
                 취소
               </button>
+              <button type="button" class="px-3 py-2 text-sm rounded t-btn-secondary" @click="submitJarvisActionShared">
+                액션 실행
+              </button>
               <button type="button" class="px-3 py-2 text-sm rounded t-btn-secondary" @click="submitJarvisShared">
                 공유 질문
               </button>
@@ -1685,6 +1688,9 @@
     <template #footer>
       <div class="flex items-center justify-end gap-2">
         <button class="px-3 py-2 text-sm rounded t-btn-secondary" @click="closeJarvis">취소</button>
+        <button class="px-3 py-2 text-sm rounded t-btn-secondary" @click="submitJarvisActionShared">
+          액션 실행
+        </button>
         <button class="px-3 py-2 text-sm rounded t-btn-primary" @click="submitJarvisShared">
           공유 질문
         </button>
@@ -1774,17 +1780,22 @@
     </template>
   </CommonModal>
 
-  <CommonModal :open="newsPopupOpen" title="오늘의 채팅방 주제 관련 뉴스" @close="closeNewsPopup">
+  <CommonModal :open="newsPopupOpen" :title="newsPopupTitle" @close="closeNewsPopup">
     <div class="space-y-3">
       <p class="text-xs t-text-muted">
-        채팅방 주제({{ store.activeRoom?.title ?? "이 방" }})를 기준으로 검색한 최신 뉴스입니다.
+        <template v-if="roomNewsMode === 'topic'">
+          채팅방 주제({{ store.activeRoom?.title ?? "이 방" }})를 기준으로 검색한 최신 뉴스입니다.
+        </template>
+        <template v-else>
+          검색어(<span class="t-text">{{ roomNewsQuery }}</span>)로 검색한 최신 뉴스입니다.
+        </template>
       </p>
       <div class="flex items-center justify-end">
         <button
           type="button"
           class="px-2 py-1 text-xs rounded t-btn-secondary"
           :disabled="roomNewsLoading || !store.activeRoomId"
-          @click="store.activeRoomId && loadRoomNews(store.activeRoomId)"
+          @click="store.activeRoomId && (roomNewsMode === 'topic' ? loadRoomNews(store.activeRoomId) : loadRoomNewsSearch(store.activeRoomId, roomNewsQuery))"
         >
           새로고침
         </button>
@@ -2059,6 +2070,7 @@ import {
   type PulseReportDto,
   fetchUsers,
   fetchRoomNews,
+  searchRoomNews,
   importMeetingSummary,
   translateText,
   transcribeAudio,
@@ -4111,6 +4123,12 @@ const roomNewsItems = ref<RoomNewsItemDto[]>([]);
 const roomNewsLoading = ref(false);
 const roomNewsError = ref("");
 const roomNewsCache = ref<Record<string, { items: RoomNewsItemDto[]; date: string; query: string }>>({});
+const roomNewsMode = ref<"topic" | "search">("topic");
+const roomNewsQuery = ref("");
+
+const newsPopupTitle = computed(() => {
+  return roomNewsMode.value === "topic" ? "오늘의 채팅방 주제 관련 뉴스" : "뉴스 검색 결과";
+});
 
 function getTodayDateStr() {
   return new Date().toISOString().slice(0, 10);
@@ -4124,9 +4142,12 @@ function openNewsPopup() {
     roomNewsItems.value = [];
     return;
   }
+  roomNewsMode.value = "topic";
+  roomNewsQuery.value = "";
   const query = String(store.activeRoom?.title ?? "").trim();
   const today = getTodayDateStr();
-  const cached = roomNewsCache.value[roomId];
+  const cacheKey = `${roomId}::${query}`;
+  const cached = roomNewsCache.value[cacheKey];
   // 빈 결과/제목 변경(=쿼리 변경)은 캐시 사용하지 않고 재조회
   if (cached && cached.date === today && cached.query === query && cached.items.length > 0) {
     roomNewsItems.value = cached.items;
@@ -4145,7 +4166,8 @@ async function loadRoomNews(roomId: string) {
     roomNewsItems.value = items ?? [];
     // NOTE: 빈 결과는 캐싱하지 않음(일시 장애/제목 변경 시 '오늘은 계속 없음'처럼 보이는 문제 방지)
     const q = String(store.activeRoom?.title ?? "").trim();
-    if ((items ?? []).length > 0) roomNewsCache.value[roomId] = { items: items ?? [], date: getTodayDateStr(), query: q };
+    const cacheKey = `${roomId}::${q}`;
+    if ((items ?? []).length > 0) roomNewsCache.value[cacheKey] = { items: items ?? [], date: getTodayDateStr(), query: q };
   } catch (e: any) {
     const code = String(e?.message ?? "");
     roomNewsError.value =
@@ -4162,9 +4184,70 @@ async function loadRoomNews(roomId: string) {
   }
 }
 
+async function loadRoomNewsSearch(roomId: string, query: string) {
+  if (!store.token) return;
+  const q = String(query ?? "").trim();
+  if (!q) return;
+  roomNewsLoading.value = true;
+  roomNewsError.value = "";
+  roomNewsItems.value = [];
+  try {
+    const { items } = await searchRoomNews(store.token, roomId, q);
+    roomNewsItems.value = items ?? [];
+    const cacheKey = `${roomId}::${q}`;
+    if ((items ?? []).length > 0) roomNewsCache.value[cacheKey] = { items: items ?? [], date: getTodayDateStr(), query: q };
+  } catch (e: any) {
+    const code = String(e?.message ?? "");
+    roomNewsError.value =
+      code === "NAVER_NEWS_NOT_CONFIGURED"
+        ? "뉴스 기능이 설정되어 있지 않습니다. (서버 NAVER_CLIENT_ID / NAVER_CLIENT_SECRET 확인)"
+        : code === "NAVER_API_RATE_LIMIT"
+          ? "뉴스 API 호출이 너무 많습니다. 잠시 후 다시 시도해주세요."
+          : code === "NAVER_API_AUTH_FAILED"
+            ? "뉴스 API 인증에 실패했습니다. (서버 NAVER_CLIENT_ID / NAVER_CLIENT_SECRET 확인)"
+            : code || "뉴스를 불러오지 못했습니다.";
+    roomNewsItems.value = [];
+  } finally {
+    roomNewsLoading.value = false;
+  }
+}
+
+function openNewsPopupSearch(query: string) {
+  const roomId = store.activeRoomId;
+  if (!roomId) return;
+  const q = String(query ?? "").trim();
+  if (!q) return;
+  newsPopupOpen.value = true;
+  roomNewsMode.value = "search";
+  roomNewsQuery.value = q;
+  roomNewsError.value = "";
+
+  const today = getTodayDateStr();
+  const cacheKey = `${roomId}::${q}`;
+  const cached = roomNewsCache.value[cacheKey];
+  if (cached && cached.date === today && cached.query === q && cached.items.length > 0) {
+    roomNewsItems.value = cached.items;
+    return;
+  }
+  loadRoomNewsSearch(roomId, q);
+}
+
 function closeNewsPopup() {
   newsPopupOpen.value = false;
 }
+
+// Worker/tool-triggered news search popup
+watch(
+  () => store.newsSearchPopup,
+  (v) => {
+    if (!v) return;
+    // Only open if the user is currently viewing the same room.
+    if (v.roomId === store.activeRoomId) {
+      openNewsPopupSearch(v.query);
+    }
+    store.consumeNewsSearchPopup();
+  }
+);
 
 function formatNewsDate(pubDate: string) {
   if (!pubDate) return "";
@@ -4613,7 +4696,18 @@ function submitJarvisShared() {
   jarvisOpen.value = false;
   jarvisPopoverOpen.value = false;
   pendingAiContextRoomId.value = store.activeRoomId;
-  store.askJarvis(store.activeRoomId, JARVIS_NO_GREETING + ctxBlock, false);
+  store.askJarvis(store.activeRoomId, JARVIS_NO_GREETING + ctxBlock, false, "chat");
+}
+
+/** 액션 실행(공유): 자연어 의도 분석 + 도구 호출을 우선 시도 */
+function submitJarvisActionShared() {
+  if (!store.activeRoomId) return;
+  const ctxBlock = buildJarvisPromptBlock();
+  if (!ctxBlock) return;
+  jarvisOpen.value = false;
+  jarvisPopoverOpen.value = false;
+  pendingAiContextRoomId.value = store.activeRoomId;
+  store.askJarvis(store.activeRoomId, JARVIS_NO_GREETING + ctxBlock, false, "action");
 }
 
 /** 개인 질문: 팝업 내 답변 영역에만 표시, 팝업 유지. 전송 후 textarea 비우고, 답변 완료 시 다음 질문에서 맥락 유지되도록 선택 메시지에 추가 */
@@ -4623,7 +4717,7 @@ function submitJarvisPersonal() {
   if (!ctxBlock) return;
   const userQuestion = jarvisPrompt.value.trim();
   lastPersonalQuestionText.value = userQuestion;
-  store.askJarvis(store.activeRoomId, JARVIS_NO_GREETING + ctxBlock, true);
+  store.askJarvis(store.activeRoomId, JARVIS_NO_GREETING + ctxBlock, true, "chat");
   jarvisPrompt.value = "";
 }
 

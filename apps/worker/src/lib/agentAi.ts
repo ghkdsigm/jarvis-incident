@@ -5,7 +5,7 @@ import { AVAILABLE_TOOLS, executeTool, type ToolCall, type ToolResult } from "./
 import { nanoid } from "nanoid";
 
 type StreamCb = (chunk: string) => Promise<void> | void;
-type Message = { role: "system" | "user" | "assistant" | "function"; content: string; name?: string; tool_call_id?: string };
+type Message = { role: "system" | "user" | "assistant" | "tool"; content: string; tool_call_id?: string };
 
 /**
  * RAG와 에이전트 기능을 통합한 AI 응답 생성
@@ -13,6 +13,7 @@ type Message = { role: "system" | "user" | "assistant" | "function"; content: st
 export async function streamAgentAnswer(
   prompt: string,
   roomId: string,
+  requestedBy: string,
   onChunk: StreamCb,
   options: {
     useRAG?: boolean;
@@ -39,18 +40,43 @@ export async function streamAgentAnswer(
   }
 
   // 시스템 프롬프트 구성
-  let systemPrompt = `You are Jarvis, an intelligent AI assistant in this team chat. 
+  const nowIso = new Date().toISOString();
+  let nowKst = "";
+  try {
+    nowKst = new Intl.DateTimeFormat("sv-SE", {
+      timeZone: "Asia/Seoul",
+      year: "numeric",
+      month: "2-digit",
+      day: "2-digit",
+      hour: "2-digit",
+      minute: "2-digit",
+      second: "2-digit"
+    })
+      .format(new Date())
+      .replace(" ", "T");
+  } catch {
+    // ignore if ICU/timezone data is not available
+    nowKst = "";
+  }
+
+  let systemPrompt = `You are Jarvis, an intelligent AI assistant in this team chat.
 - Answer naturally: greet back for greetings, answer briefly for simple questions.
 - Give concise actionable steps when users ask for troubleshooting or technical help.
 - Use Korean when the user writes in Korean.
 - Be helpful, accurate, and context-aware.`;
+
+  systemPrompt += `\n\nCurrent time:\n- UTC: ${nowIso}\n- Asia/Seoul: ${nowKst || "(unavailable)"}\n\nDate interpretation rules (Korea):\n- If user says only '2월 19일' (no year), assume the current year in Asia/Seoul. If that date has already passed this year, assume next year.\n- Always interpret ambiguous times in Asia/Seoul (+09:00) unless user specifies otherwise.`;
 
   if (contextMessages.length > 0) {
     systemPrompt += `\n\n아래는 이 질문과 관련된 과거 대화 내용입니다. 참고하여 더 정확하고 맥락에 맞는 답변을 해주세요:\n\n${contextMessages.join("\n\n")}`;
   }
 
   if (useTools) {
-    systemPrompt += `\n\nYou have access to tools. When you need to search for information, calculate, or get room context, use the appropriate tool.`;
+    systemPrompt += `\n\nYou have access to tools. Use tools when needed, especially for calendar operations, user/room operations, chat DB search, and opening a news search popup.`;
+    systemPrompt += `\n\nTool rules:\n- For room_add_user: NEVER create a user unless both email and name are provided. If ambiguous matches exist, ask the user to clarify.\n- For calendar tools: prefer ISO datetime with timezone. If the user doesn't specify timezone, assume Asia/Seoul (+09:00). If time is missing, ask a clarification or make a reasonable assumption and say what you assumed.\n- For open_news_search_popup: use it when the user asks to show news about a specific topic; set query to the intended topic (not the room title unless requested).`;
+    systemPrompt += `\n\nKorean scheduling defaults (when user intent is clear but exact time missing):\n- '점심' => 12:00-13:00 KST\n- '저녁' => 18:00-20:00 KST\n- '회식' and no time => 19:00-21:00 KST\n- If only a date is provided, pick a sensible default based on these keywords and explicitly state the assumed time range.`;
+    systemPrompt += `\n\nYear handling:\n- If a year is explicitly mentioned, use it.\n- If the user does not mention a year and the action requires a year, use the current year at the time of writing (Asia/Seoul), unless the date would be in the past then use next year.`;
+    systemPrompt += `\n\nRoom management:\n- If the user asks to create a chat room (채팅방 만들어줘 / ~채팅방 만들어줘), call create_room.\n- If the user asks to create a room and add members, include members in create_room.members.\n- Members can be one or multiple; parse names/emails from the user's text. If ambiguous, ask a clarification question.`;
   }
 
   const messages: Message[] = [
@@ -85,6 +111,7 @@ export async function streamAgentAnswer(
         const args = JSON.parse(toolCall.function.arguments);
         const result = await executeTool(toolCall.function.name, args, {
           roomId,
+          requestedBy,
           prisma,
           generateEmbedding,
           searchSimilarMessages
@@ -144,8 +171,7 @@ export async function streamAgentAnswer(
       if (!toolResult) {
         // 결과가 없으면 에러 응답 추가
         messages.push({
-          role: "function",
-          name: toolCall.function.name,
+          role: "tool",
           content: JSON.stringify({ error: "Tool execution failed" }),
           tool_call_id: toolCall.id
         });
@@ -153,8 +179,7 @@ export async function streamAgentAnswer(
       }
 
       messages.push({
-        role: "function",
-        name: toolCall.function.name,
+        role: "tool",
         content: toolResult.error
           ? JSON.stringify({ error: toolResult.error })
           : JSON.stringify(toolResult.result),
@@ -200,7 +225,6 @@ async function callOpenAIWithTools(messages: Message[], enableTools: boolean): P
         role: m.role, 
         content: m.content ?? "" // null이면 빈 문자열
       };
-      if (m.name) msg.name = m.name;
       if (m.tool_call_id) msg.tool_call_id = m.tool_call_id;
       if ((m as any).tool_calls) msg.tool_calls = (m as any).tool_calls;
       return msg;

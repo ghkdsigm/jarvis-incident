@@ -285,6 +285,26 @@ export async function fetchRoomNews(
   return await res.json();
 }
 
+/** 뉴스 검색: 사용자가 요청한 query로 검색 */
+export async function searchRoomNews(
+  token: string,
+  roomId: string,
+  q: string
+): Promise<{ items: RoomNewsItemDto[] }> {
+  const query = String(q ?? "").trim();
+  if (!query) return { items: [] };
+  const url = new URL(`${API_BASE}/rooms/${roomId}/news/search`);
+  url.searchParams.set("q", query);
+  const res = await fetch(url.toString(), {
+    headers: { Authorization: `Bearer ${token}` }
+  });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error((err as any).error ?? `News search failed: ${res.status}`);
+  }
+  return await res.json();
+}
+
 /** 한국 공공데이터포털 특일 정보 API (서버 프록시를 통해 호출) */
 export type HolidayInfo = {
   date: string; // YYYY-MM-DD 형식

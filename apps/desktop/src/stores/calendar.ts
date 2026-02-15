@@ -1,6 +1,12 @@
 import { defineStore } from "pinia";
-
-const LS_CALENDAR_EVENTS = "jarvis.desktop.calendar.events";
+import {
+  fetchCalendarEvents,
+  createCalendarEvent,
+  updateCalendarEvent,
+  deleteCalendarEvent,
+  type CalendarEventDto
+} from "../api/http.js";
+import { useSessionStore } from "./session.js";
 
 export interface CalendarEvent {
   id: string;
@@ -18,27 +24,21 @@ const DEFAULT_COLORS = [
   "#4CBC26",
   "#00CE7D", // Success
   "#006FF1", // Information
-  "#FB4F4F"  // Error/Accent
+  "#FB4F4F", // Error/Accent
+  "#FF6B6B", // Coral Red
+  "#FF8C42", // Orange
+  "#FFB800", // Yellow
+  "#9B59B6", // Purple
+  "#E91E63", // Pink
+  "#2196F3", // Blue
+  "#00BCD4", // Cyan
+  "#4CAF50", // Green
+  "#8BC34A", // Light Green
+  "#FFC107", // Amber
+  "#FF9800", // Deep Orange
+  "#795548", // Brown
+  "#607D8B"  // Blue Grey
 ];
-
-function loadEvents(): CalendarEvent[] {
-  try {
-    const raw = localStorage.getItem(LS_CALENDAR_EVENTS);
-    if (!raw) return [];
-    const arr = JSON.parse(raw);
-    return Array.isArray(arr) ? arr : [];
-  } catch {
-    return [];
-  }
-}
-
-function saveEvents(events: CalendarEvent[]) {
-  try {
-    localStorage.setItem(LS_CALENDAR_EVENTS, JSON.stringify(events));
-  } catch {
-    // ignore
-  }
-}
 
 function toDateKey(d: Date): string {
   const y = d.getFullYear();
@@ -54,7 +54,8 @@ function parseDateKey(key: string): Date {
 
 export const useCalendarStore = defineStore("calendar", {
   state: () => ({
-    events: loadEvents() as CalendarEvent[]
+    events: [] as CalendarEvent[],
+    loading: false
   }),
 
   getters: {
@@ -78,28 +79,63 @@ export const useCalendarStore = defineStore("calendar", {
   },
 
   actions: {
-    addEvent(event: Omit<CalendarEvent, "id" | "createdAt">): CalendarEvent {
-      const id = `evt_${Date.now()}_${Math.random().toString(36).slice(2, 9)}`;
-      const created: CalendarEvent = {
-        ...event,
-        id,
-        createdAt: new Date().toISOString()
-      };
+    async loadEvents() {
+      const sessionStore = useSessionStore();
+      if (!sessionStore.token) {
+        this.events = [];
+        return;
+      }
+
+      this.loading = true;
+      try {
+        const events = await fetchCalendarEvents(sessionStore.token);
+        this.events = events;
+      } catch (error) {
+        console.error("Failed to load calendar events:", error);
+        this.events = [];
+      } finally {
+        this.loading = false;
+      }
+    },
+
+    async addEvent(event: Omit<CalendarEvent, "id" | "createdAt">): Promise<CalendarEvent> {
+      const sessionStore = useSessionStore();
+      if (!sessionStore.token) {
+        throw new Error("Not authenticated");
+      }
+
+      const created = await createCalendarEvent(sessionStore.token, {
+        title: event.title,
+        start: event.start,
+        end: event.end,
+        color: event.color
+      });
+
       this.events.push(created);
-      saveEvents(this.events);
       return created;
     },
 
-    updateEvent(id: string, patch: Partial<Pick<CalendarEvent, "title" | "start" | "end" | "color">>) {
+    async updateEvent(id: string, patch: Partial<Pick<CalendarEvent, "title" | "start" | "end" | "color">>) {
+      const sessionStore = useSessionStore();
+      if (!sessionStore.token) {
+        throw new Error("Not authenticated");
+      }
+
+      const updated = await updateCalendarEvent(sessionStore.token, id, patch);
       const i = this.events.findIndex((e) => e.id === id);
-      if (i === -1) return;
-      this.events[i] = { ...this.events[i], ...patch };
-      saveEvents(this.events);
+      if (i !== -1) {
+        this.events[i] = updated;
+      }
     },
 
-    deleteEvent(id: string) {
+    async deleteEvent(id: string) {
+      const sessionStore = useSessionStore();
+      if (!sessionStore.token) {
+        throw new Error("Not authenticated");
+      }
+
+      await deleteCalendarEvent(sessionStore.token, id);
       this.events = this.events.filter((e) => e.id !== id);
-      saveEvents(this.events);
     },
 
     getEventsForMonth(year: number, month: number): CalendarEvent[] {

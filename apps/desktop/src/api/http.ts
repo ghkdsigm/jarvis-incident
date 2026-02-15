@@ -346,3 +346,73 @@ export async function transcribeAudio(
   }
   return await res.json();
 }
+
+/** 캘린더 일정 타입 */
+export type CalendarEventDto = {
+  id: string;
+  title: string;
+  start: string; // ISO date or datetime
+  end: string;
+  color: string;
+  createdAt: string;
+};
+
+/** 캘린더 일정 목록 조회 */
+export async function fetchCalendarEvents(token: string): Promise<CalendarEventDto[]> {
+  const res = await fetch(`${API_BASE}/calendar/events`, {
+    headers: { Authorization: `Bearer ${token}` }
+  });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error((err as any).error ?? `Fetch calendar events failed: ${res.status}`);
+  }
+  return await res.json();
+}
+
+/** 캘린더 일정 생성 */
+export async function createCalendarEvent(
+  token: string,
+  input: { title: string; start: string; end: string; color?: string }
+): Promise<CalendarEventDto> {
+  const res = await fetch(`${API_BASE}/calendar/events`, {
+    method: "POST",
+    headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
+    body: JSON.stringify(input)
+  });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error((err as any).error ?? `Create calendar event failed: ${res.status}`);
+  }
+  return await res.json();
+}
+
+/** 캘린더 일정 수정 */
+export async function updateCalendarEvent(
+  token: string,
+  eventId: string,
+  input: { title?: string; start?: string; end?: string; color?: string }
+): Promise<CalendarEventDto> {
+  const res = await fetch(`${API_BASE}/calendar/events/${eventId}`, {
+    method: "PUT",
+    headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
+    body: JSON.stringify(input)
+  });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error((err as any).error ?? `Update calendar event failed: ${res.status}`);
+  }
+  return await res.json();
+}
+
+/** 캘린더 일정 삭제 */
+export async function deleteCalendarEvent(token: string, eventId: string): Promise<{ ok: boolean }> {
+  const res = await fetch(`${API_BASE}/calendar/events/${eventId}`, {
+    method: "DELETE",
+    headers: { Authorization: `Bearer ${token}` }
+  });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error((err as any).error ?? `Delete calendar event failed: ${res.status}`);
+  }
+  return await res.json();
+}

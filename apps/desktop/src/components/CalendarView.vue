@@ -133,6 +133,7 @@
                 : (theme === 'dark' ? 'bg-zinc-800/50 text-gray-500' : 'bg-gray-100 text-gray-400'),
               cell.isToday ? 'ring-1 ring-[#00AD50] ring-inset' : ''
             ]"
+            @dblclick="openAddEventModalForDate(cell.dateKey)"
           >
             <div
               class="text-sm font-medium mb-1 w-7 h-7 flex items-center justify-center rounded-full"
@@ -222,12 +223,24 @@
               v-for="c in calendarStore.defaultColors"
               :key="c"
               type="button"
-              class="w-8 h-8 rounded-full border-2 transition-transform"
-              :class="form.color === c ? 'border-[#262626] dark:border-white scale-110' : 'border-transparent'"
+              class="w-8 h-8 rounded-full transition-all relative"
+              :class="form.color === c ? 'border-2 border-[#262626] dark:border-white scale-110 ring-2 ring-offset-2 ring-[#262626] dark:ring-white' : 'border-0'"
               :style="{ backgroundColor: c }"
               :aria-label="'색상 ' + c"
               @click="form.color = c"
-            />
+            >
+              <svg
+                v-if="form.color === c"
+                class="w-4 h-4 absolute inset-0 m-auto"
+                :class="theme === 'dark' ? 'text-white' : 'text-[#262626]'"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="3"
+                viewBox="0 0 24 24"
+              >
+                <path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7" />
+              </svg>
+            </button>
           </div>
         </div>
       </form>
@@ -275,6 +288,13 @@
             @click="deleteSelectedEvent"
           >
             삭제
+          </button>
+          <button
+            type="button"
+            class="px-3 py-2 text-sm rounded t-btn-primary"
+            @click="openEditEventModal"
+          >
+            수정
           </button>
           <button type="button" class="px-3 py-2 text-sm rounded t-btn-secondary" @click="detailModalOpen = false">
             닫기
@@ -422,6 +442,7 @@ function onDocClick(e: MouseEvent) {
 
 onMounted(() => {
   document.addEventListener("click", onDocClick);
+  calendarStore.loadEvents();
 });
 onBeforeUnmount(() => {
   document.removeEventListener("click", onDocClick);
@@ -458,9 +479,33 @@ function openAddEventModal() {
   eventModalOpen.value = true;
 }
 
+function openAddEventModalForDate(dateKey: string) {
+  editingEvent.value = null;
+  form.value = {
+    title: "",
+    start: dateKey,
+    end: dateKey,
+    color: calendarStore.defaultColors[0]
+  };
+  eventModalOpen.value = true;
+}
+
 function openDetail(evt: CalendarEvent) {
   selectedEvent.value = evt;
   detailModalOpen.value = true;
+}
+
+function openEditEventModal() {
+  if (!selectedEvent.value) return;
+  editingEvent.value = selectedEvent.value;
+  form.value = {
+    title: selectedEvent.value.title,
+    start: selectedEvent.value.start.slice(0, 10),
+    end: selectedEvent.value.end.slice(0, 10),
+    color: selectedEvent.value.color
+  };
+  detailModalOpen.value = false;
+  eventModalOpen.value = true;
 }
 
 function closeEventModal() {
@@ -468,34 +513,47 @@ function closeEventModal() {
   editingEvent.value = null;
 }
 
-function submitEvent() {
+async function submitEvent() {
   if (!form.value.title.trim() || !form.value.start || !form.value.end) return;
   if (form.value.start > form.value.end) {
     form.value.end = form.value.start;
   }
-  if (editingEvent.value) {
-    calendarStore.updateEvent(editingEvent.value.id, {
-      title: form.value.title.trim(),
-      start: form.value.start,
-      end: form.value.end,
-      color: form.value.color
-    });
-  } else {
-    calendarStore.addEvent({
-      title: form.value.title.trim(),
-      start: form.value.start,
-      end: form.value.end,
-      color: form.value.color
-    });
+  try {
+    if (editingEvent.value) {
+      await calendarStore.updateEvent(editingEvent.value.id, {
+        title: form.value.title.trim(),
+        start: form.value.start,
+        end: form.value.end,
+        color: form.value.color
+      });
+    } else {
+      await calendarStore.addEvent({
+        title: form.value.title.trim(),
+        start: form.value.start,
+        end: form.value.end,
+        color: form.value.color
+      });
+    }
+    closeEventModal();
+  } catch (error) {
+    console.error("Failed to save event:", error);
+    // TODO: 에러 메시지 표시
   }
-  closeEventModal();
 }
 
-function deleteSelectedEvent() {
-  if (selectedEvent.value) {
-    calendarStore.deleteEvent(selectedEvent.value.id);
+async function deleteSelectedEvent() {
+  if (!selectedEvent.value) return;
+  
+  const confirmed = window.confirm("일정을 삭제하시겠습니까?");
+  if (!confirmed) return;
+  
+  try {
+    await calendarStore.deleteEvent(selectedEvent.value.id);
     detailModalOpen.value = false;
     selectedEvent.value = null;
+  } catch (error) {
+    console.error("Failed to delete event:", error);
+    // TODO: 에러 메시지 표시
   }
 }
 

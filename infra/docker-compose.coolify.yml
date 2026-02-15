@@ -45,6 +45,21 @@ services:
       redis:
         condition: service_started
     restart: unless-stopped
+        labels:
+      - traefik.enable=true
+      - traefik.http.services.jarvis.loadbalancer.server.port=8080
+
+      - traefik.http.middlewares.redirect-to-https.redirectscheme.scheme=https
+      - traefik.http.routers.jarvis-http.entryPoints=http
+      - traefik.http.routers.jarvis-http.rule=Host(`z0c04owsgk40g80kow404wgc.54.66.155.158.sslip.io`) && PathPrefix(`/`)
+      - traefik.http.routers.jarvis-http.middlewares=redirect-to-https
+
+      - traefik.http.routers.jarvis-https.entryPoints=https
+      - traefik.http.routers.jarvis-https.rule=Host(`z0c04owsgk40g80kow404wgc.54.66.155.158.sslip.io`) && PathPrefix(`/`)
+      - traefik.http.routers.jarvis-https.tls=true
+      - traefik.http.routers.jarvis-https.tls.certresolver=letsencrypt
+
+
 
   worker:
     build:
@@ -72,6 +87,9 @@ services:
       redis:
         condition: service_started
     restart: unless-stopped
+    labels:
+      - traefik.enable=false
+
 
 volumes:
   jarvis_pg:

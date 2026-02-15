@@ -9,8 +9,20 @@
     "dist/**",
     "electron/**"
   ],
+  "afterSign": "apps/desktop/electron/notarize.cjs",
   "extraMetadata": {
     "main": "electron/main.cjs"
+  },
+  "mac": {
+    "target": [
+      "dmg",
+      "zip"
+    ],
+    "category": "public.app-category.productivity",
+    "hardenedRuntime": true,
+    "gatekeeperAssess": false,
+    "entitlements": "apps/desktop/electron/entitlements.mac.plist",
+    "entitlementsInherit": "apps/desktop/electron/entitlements.mac.inherit.plist"
   },
   "win": {
     "target": ["nsis"]

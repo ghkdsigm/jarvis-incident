@@ -162,6 +162,30 @@ docker compose up -d
 - **방법**: `apps/desktop`에서 `npm run build` (Vite 빌드 + electron-builder 실행).  
 - **주의**: 빌드 시점의 `VITE_API_BASE` / `VITE_WS_BASE`가 설치된 앱에 박히므로, 배포 서버 주소를 **빌드 전** `.env` 또는 빌드 스크립트에서 지정해야 합니다.
 
+#### macOS 빌드/배포 (`.app` / `.dmg`)
+- **macOS에서는 `.exe`가 실행되지 않습니다.** mac 타깃은 **mac에서 빌드**해야 합니다.
+- 빌드:
+  - `npm run -w @jarvis/desktop build:mac`
+  - 산출물: `apps/desktop/release/` (예: `.dmg`, `.zip`, `.app`)
+
+#### macOS 서명(Signing) + 노타라이즈(Notarization)
+macOS에서 Gatekeeper 경고(“개발자 확인 안 됨”)를 줄이려면 **Developer ID 서명 + Apple Notarization**이 필요합니다.
+
+- 이 레포는 `electron-builder`의 `afterSign` 훅으로 노타라이즈를 수행합니다:
+  - `apps/desktop/electron/notarize.cjs`
+  - **환경변수가 없으면 자동으로 스킵**(로컬 개발 빌드가 막히지 않게)
+
+##### GitHub Actions Secrets (권장)
+`.github/workflows/desktop-build.yml`의 macOS 잡에서 아래 시크릿이 있으면 **서명 + 노타라이즈**가 자동으로 동작합니다.
+
+- **`CSC_LINK`**: Developer ID Application 인증서 `.p12` (base64 또는 다운로드 가능한 URL)
+- **`CSC_KEY_PASSWORD`**: `.p12` 비밀번호
+- **`APPLE_ID`**: Apple ID (예: `name@company.com`)
+- **`APPLE_APP_SPECIFIC_PASSWORD`**: Apple ID 앱 전용 비밀번호
+- **`APPLE_TEAM_ID`**: Team ID (예: `ABCD123456`)
+
+> 참고: `APPLE_APP_SPECIFIC_PASSWORD` 대신 `APPLE_ID_PASSWORD`로도 동작하도록 해두었습니다.
+
 #### Windows에서 `npm run build`가 끝까지 안 되는 경우(권한 이슈)
 Windows에서 electron-builder가 내부 도구(`winCodeSign`)를 풀 때 **심볼릭 링크 생성 권한**이 없어 실패할 수 있습니다.
 

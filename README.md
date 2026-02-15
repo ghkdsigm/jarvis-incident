@@ -361,3 +361,17 @@ sudo mv -f /home/ubuntu/DW-BRAIN-Setup.exe /var/www/download/DW-BRAIN-Setup.exe
 
 http://54.66.155.158:9000/DW-BRAIN-Setup.exe
 
+
+
+### 맥용 배포
+방법 A (추천): GitHub에 “비밀값 5개”만 등록하면 끝
+1) GitHub 저장소 → Settings → Secrets and variables → Actions → New repository secret
+2) 아래 5개를 그대로 이름 맞춰서 추가:
+CSC_LINK: DeveloperID.p12를 base64로 만든 문자열
+CSC_KEY_PASSWORD: 그 p12 비번
+APPLE_ID: 애플 로그인 이메일
+APPLE_APP_SPECIFIC_PASSWORD: 애플 “앱 전용 비번”
+APPLE_TEAM_ID: 팀 ID
+3) 그 다음 태그만 푸시:
+desktop-v0.1.0 같은 태그를 만들고 푸시하면 CI가 돌아가고,
+결과로 mac용 .dmg/.app가 아티팩트로 생성돼.

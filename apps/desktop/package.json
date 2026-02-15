@@ -11,6 +11,8 @@
     "dev": "concurrently -k \"vite\" \"electron .\"",
     "build": "vite build && electron-builder --projectDir ../../ --config electron-builder.desktop.json",
     "build:dir": "vite build && electron-builder --projectDir ../../ --config electron-builder.desktop.json --win --dir",
+    "build:mac": "vite build && electron-builder --projectDir ../../ --config electron-builder.desktop.json --mac",
+    "build:mac:dir": "vite build && electron-builder --projectDir ../../ --config electron-builder.desktop.json --mac --dir",
     "dist": "npm run build",
     "dist:dir": "npm run build:dir",
     "lint": "eslint .",
@@ -24,6 +26,7 @@
     "vue": "^3.5.13"
   },
   "devDependencies": {
+    "@electron/notarize": "^2.5.0",
     "@types/node": "^22.13.4",
     "@vitejs/plugin-vue": "^5.2.1",
     "@vue/test-utils": "^2.4.6",

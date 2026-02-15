@@ -26,8 +26,15 @@ COPY apps/worker/package.json ./apps/worker/package.json
 COPY apps/desktop/package.json ./apps/desktop/package.json
 COPY packages/shared/package.json ./packages/shared/package.json
 
-# Use lockfile for deterministic builds (Coolify/CI) and always include dev deps for TypeScript build
-RUN npm ci -w @jarvis/shared -w @jarvis/server --include=dev --no-audit --no-fund
+# Use lockfile for deterministic builds (Coolify/CI) and always include dev deps for TypeScript build.
+# If npm fails (Coolify often truncates logs), print the latest npm debug log for easier diagnosis.
+RUN npm ci -w @jarvis/shared -w @jarvis/server --include=dev --no-audit --no-fund || ( \
+    echo "npm ci failed; dumping latest npm debug log..." && \
+    log="$(ls -1t /root/.npm/_logs/*.log 2>/dev/null | head -n1)" && \
+    echo "log: ${log:-<none>}" && \
+    if [ -n "$log" ]; then tail -n 300 "$log"; fi && \
+    exit 1 \
+  )
 
 # Copy sources
 COPY packages/shared ./packages/shared

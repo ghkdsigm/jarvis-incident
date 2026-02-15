@@ -1,5 +1,5 @@
 import { defineStore } from "pinia";
-import { createRoom, devLogin, fetchRoomMembers, fetchRooms, fetchMessages, type RoomMemberDto } from "../api/http";
+import { createRoom, devLogin, fetchRoomMembers, fetchRooms, fetchMessages, addRoomMembers, type RoomMemberDto } from "../api/http";
 import { WsClient } from "../api/ws";
 import type { MessageDto } from "@jarvis/shared";
 
@@ -447,6 +447,20 @@ export const useSessionStore = defineStore("session", {
       this.ws.send({ type: "room.leave", roomId });
     },
 
+    async addMembersToRoom(roomId: string, userIds: string[]) {
+      if (!this.token || !roomId || !userIds.length) return;
+      try {
+        await addRoomMembers(this.token, roomId, userIds);
+        // 참가자 리스트 무효화 (다음 로드 시 갱신)
+        if (this.roomMembersByRoom[roomId]) {
+          delete this.roomMembersByRoom[roomId];
+        }
+      } catch (e) {
+        console.error("Failed to add members:", e);
+        throw e;
+      }
+    },
+
     askJarvis(roomId: string, prompt: string, isPersonal = false) {
       if (!this.ws) return;
       if (!this.joinedByRoom[roomId]) {
@@ -852,6 +866,96 @@ export const useSessionStore = defineStore("session", {
           this.personalJarvisDone = true;
           this.personalJarvisRequestId = "";
         }
+        return;
+      }
+
+      if (evt.type === "room.member.added") {
+        const p = evt.payload as { roomId: string; userId: string; userName: string };
+        if (!p?.roomId || !p?.userName) return;
+
+        // 시스템 메시지 생성
+        const systemMsg: MessageDto = {
+          id: `sys:member-added:${p.roomId}:${p.userId}:${Date.now()}`,
+          roomId: p.roomId,
+          senderType: "system",
+          senderUserId: null,
+          content: `${p.userName}님이 참여하였습니다.`,
+          createdAt: new Date().toISOString()
+        };
+        const list = this.messagesByRoom[p.roomId] ?? [];
+        // 반응성을 위해 새 배열 생성
+        this.messagesByRoom = { ...this.messagesByRoom, [p.roomId]: [...list, systemMsg] };
+
+        // 참가자 리스트 업데이트 (로드된 경우)
+        if (this.roomMembersByRoom[p.roomId]) {
+          // 새 멤버가 이미 있는지 확인
+          const existing = this.roomMembersByRoom[p.roomId].find((m) => m.id === p.userId);
+          if (!existing) {
+            // 임시 멤버 객체 생성 (실제 데이터는 다음 로드 시 갱신)
+            const tempMember: RoomMemberDto = {
+              id: p.userId,
+              name: p.userName,
+              email: "",
+              isOnline: false,
+              lastSeenAt: null,
+              team: "",
+              role: "",
+              tags: []
+            };
+            this.roomMembersByRoom = {
+              ...this.roomMembersByRoom,
+              [p.roomId]: [...this.roomMembersByRoom[p.roomId], tempMember]
+            };
+          }
+        } else {
+          // 로드되지 않은 경우 무효화 (다음 로드 시 갱신)
+          // roomMembersByRoom은 그대로 두고 membersCount만 업데이트
+        }
+
+        // 방의 참가자 수 업데이트
+        const room = this.rooms.find((r) => r.id === p.roomId);
+        if (room) {
+          const currentCount = room.membersCount ?? room._count?.members ?? 0;
+          this.rooms = this.rooms.map((r) =>
+            r.id === p.roomId ? { ...r, membersCount: currentCount + 1 } : r
+          );
+        }
+
+        return;
+      }
+
+      if (evt.type === "room.member.removed") {
+        const p = evt.payload as { roomId: string; userId: string; userName: string };
+        if (!p?.roomId || !p?.userName) return;
+
+        // 시스템 메시지 생성
+        const systemMsg: MessageDto = {
+          id: `sys:member-removed:${p.roomId}:${p.userId}:${Date.now()}`,
+          roomId: p.roomId,
+          senderType: "system",
+          senderUserId: null,
+          content: `${p.userName}님이 채팅방을 나갔습니다.`,
+          createdAt: new Date().toISOString()
+        };
+        const list = this.messagesByRoom[p.roomId] ?? [];
+        // 반응성을 위해 새 객체 생성
+        this.messagesByRoom = { ...this.messagesByRoom, [p.roomId]: [...list, systemMsg] };
+
+        // 참가자 리스트에서 제거
+        if (this.roomMembersByRoom[p.roomId]) {
+          const filtered = this.roomMembersByRoom[p.roomId].filter((m) => m.id !== p.userId);
+          this.roomMembersByRoom = { ...this.roomMembersByRoom, [p.roomId]: filtered };
+        }
+
+        // 방의 참가자 수 업데이트
+        const room = this.rooms.find((r) => r.id === p.roomId);
+        if (room) {
+          const currentCount = room.membersCount ?? room._count?.members ?? 0;
+          this.rooms = this.rooms.map((r) =>
+            r.id === p.roomId ? { ...r, membersCount: Math.max(0, currentCount - 1) } : r
+          );
+        }
+
         return;
       }
     }

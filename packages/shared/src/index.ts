@@ -114,6 +114,8 @@ export type RoomEvent =
   | { type: "room.left"; payload: { roomId: string } }
   | { type: "room.updated"; payload: { roomId: string; title: string } }
   | { type: "room.deleted"; payload: { roomId: string } }
+  | { type: "room.member.added"; payload: { roomId: string; userId: string; userName: string } }
+  | { type: "room.member.removed"; payload: { roomId: string; userId: string; userName: string } }
   | { type: "rtc.offer"; payload: { roomId: string; fromUserId: string; sdp: any } }
   | { type: "rtc.answer"; payload: { roomId: string; fromUserId: string; sdp: any } }
   | { type: "rtc.ice"; payload: { roomId: string; fromUserId: string; candidate: any } }

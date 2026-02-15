@@ -3,7 +3,7 @@ import { WsClientMessageSchema, isJarvisTrigger, stripJarvisPrefix } from "@jarv
 import { prisma } from "../lib/prisma.js";
 import { aiQueue } from "../lib/queues.js";
 import { env } from "../lib/env.js";
-import { redisSub } from "../lib/redis.js";
+import { redisSub, redisPub } from "../lib/redis.js";
 
 type WsConn = { socket: any; userId: string; rooms: Set<string> };
 
@@ -139,7 +139,8 @@ export async function registerWs(app: FastifyInstance) {
       if (msg.type === "room.leave") {
         const roomId = msg.roomId;
         const membership = await prisma.roomMember.findUnique({
-          where: { roomId_userId: { roomId, userId: conn.userId } }
+          where: { roomId_userId: { roomId, userId: conn.userId } },
+          include: { user: { select: { name: true } } }
         });
         if (!membership) {
           socket.send(JSON.stringify({ type: "error", payload: { message: "FORBIDDEN" } }));
@@ -155,6 +156,8 @@ export async function registerWs(app: FastifyInstance) {
           }
         }
 
+        const userName = membership.user?.name ?? "알 수 없음";
+
         await prisma.roomMember.delete({
           where: { roomId_userId: { roomId, userId: conn.userId } }
         });
@@ -168,6 +171,13 @@ export async function registerWs(app: FastifyInstance) {
         const remain = await prisma.roomMember.count({ where: { roomId } });
         if (remain === 0) {
           await prisma.room.delete({ where: { id: roomId } });
+        } else {
+          // 참가자 제거 이벤트 브로드캐스트
+          const event = {
+            type: "room.member.removed",
+            payload: { roomId, userId: conn.userId, userName }
+          };
+          await redisPub.publish(env.pubsubChannel, JSON.stringify(event));
         }
 
         socket.send(JSON.stringify({ type: "room.left", payload: { roomId } }));

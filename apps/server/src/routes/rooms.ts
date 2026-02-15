@@ -1,6 +1,8 @@
 import { FastifyInstance } from "fastify";
 import { prisma } from "../lib/prisma.js";
 import { aiQueue } from "../lib/queues.js";
+import { redisPub } from "../lib/redis.js";
+import { env } from "../lib/env.js";
 
 export async function roomRoutes(app: FastifyInstance) {
   app.get("/rooms", { preHandler: app.authenticate }, async (req: any) => {
@@ -155,5 +157,80 @@ export async function roomRoutes(app: FastifyInstance) {
       requestedBy: userId
     });
     return reply.send({ ok: true });
+  });
+
+  // 참가자 추가
+  app.post("/rooms/:roomId/members", { preHandler: app.authenticate }, async (req: any, reply) => {
+    const roomId = req.params.roomId as string;
+    const userId = req.user.sub as string;
+    const body = (req.body ?? {}) as { userIds?: string[] };
+    const userIds = Array.isArray(body.userIds) ? body.userIds.filter(Boolean) : [];
+
+    if (userIds.length === 0) {
+      return reply.code(400).send({ error: "USER_IDS_REQUIRED" });
+    }
+
+    // 현재 사용자가 방의 멤버인지 확인
+    const requesterMembership = await prisma.roomMember.findUnique({
+      where: { roomId_userId: { roomId, userId } }
+    });
+    if (!requesterMembership) {
+      return reply.code(403).send({ error: "FORBIDDEN" });
+    }
+
+    // 이미 멤버인 사용자 제외
+    const existingMembers = await prisma.roomMember.findMany({
+      where: {
+        roomId,
+        userId: { in: userIds }
+      },
+      select: { userId: true }
+    });
+    const existingUserIds = new Set(existingMembers.map((m) => m.userId));
+    const newUserIds = userIds.filter((id) => !existingUserIds.has(id));
+
+    if (newUserIds.length === 0) {
+      return reply.send({ ok: true, added: 0, skipped: userIds.length });
+    }
+
+    // 사용자 존재 확인
+    const users = await prisma.user.findMany({
+      where: { id: { in: newUserIds } },
+      select: { id: true, name: true }
+    });
+    const validUserIds = users.map((u) => u.id);
+    const userMap = new Map(users.map((u) => [u.id, u.name]));
+
+    if (validUserIds.length === 0) {
+      return reply.code(400).send({ error: "NO_VALID_USERS" });
+    }
+
+    // 멤버 추가
+    await prisma.roomMember.createMany({
+      data: validUserIds.map((id) => ({
+        roomId,
+        userId: id,
+        role: "member"
+      })),
+      skipDuplicates: true
+    });
+
+    // WebSocket 이벤트 브로드캐스트
+    const members = await prisma.roomMember.findMany({
+      where: { roomId },
+      select: { userId: true }
+    });
+    const memberUserIds = members.map((m) => m.userId);
+
+    for (const addedUserId of validUserIds) {
+      const userName = userMap.get(addedUserId) ?? "알 수 없음";
+      const event = {
+        type: "room.member.added",
+        payload: { roomId, userId: addedUserId, userName }
+      };
+      await redisPub.publish(env.pubsubChannel, JSON.stringify(event));
+    }
+
+    return reply.send({ ok: true, added: validUserIds.length, skipped: userIds.length - validUserIds.length });
   });
 }

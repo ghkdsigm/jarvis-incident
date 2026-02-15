@@ -62,6 +62,23 @@ export async function fetchRoomMembers(token: string, roomId: string): Promise<R
   return await res.json();
 }
 
+export async function addRoomMembers(
+  token: string,
+  roomId: string,
+  userIds: string[]
+): Promise<{ ok: boolean; added: number; skipped: number }> {
+  const res = await fetch(`${API_BASE}/rooms/${roomId}/members`, {
+    method: "POST",
+    headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
+    body: JSON.stringify({ userIds })
+  });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error((err as any).error ?? `Add members failed: ${res.status}`);
+  }
+  return await res.json();
+}
+
 export async function translateText(
   token: string,
   input: { text: string; targetLang?: string }

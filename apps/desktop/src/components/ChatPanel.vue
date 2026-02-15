@@ -4651,10 +4651,15 @@ watch(
   { immediate: true }
 );
 
-function submitInvite() {
-  // 아직 시스템에 동료/초대 데이터가 없으니 UI만 우선.
-  // 추후: store.inviteToRoom(store.activeRoomId, selectedColleagueIds.value)
-  inviteOpen.value = false;
+async function submitInvite() {
+  if (!store.activeRoomId || !selectedColleagueIds.value.length) return;
+  try {
+    await store.addMembersToRoom(store.activeRoomId, selectedColleagueIds.value);
+    inviteOpen.value = false;
+    selectedColleagueIds.value = [];
+  } catch (e: any) {
+    alert(e?.message ?? "동료 추가에 실패했습니다.");
+  }
 }
 
 async function startShare() {

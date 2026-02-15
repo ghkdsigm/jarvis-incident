@@ -21,22 +21,51 @@ Teams보다 가볍게, “항상 위(Always-on-top)”로 떠있는 데스크톱
 .
 ├─ apps/
 │  ├─ server/                     # REST + WebSocket API 서버
-│  │  ├─ src/                     # 서버 소스(Fastify, WS hub, routes, plugins)
+│  │  ├─ src/
+│  │  │  ├─ routes/               # REST API 라우트 (calendar, devAuth, holidays, insights, news, rooms, speech, translate, users)
+│  │  │  ├─ ws/                   # WebSocket 허브 (hub.ts)
+│  │  │  ├─ plugins/              # Fastify 플러그인 (auth.ts)
+│  │  │  ├─ lib/                   # 공통 라이브러리 (env, prisma, queues, redis)
+│  │  │  └─ index.ts               # 서버 엔트리포인트
 │  │  ├─ prisma/                  # Prisma schema + migrations
 │  │  ├─ Dockerfile               # 서버 컨테이너 이미지 빌드
-│  │  └─ docker-entrypoint.sh     # 컨테이너 엔트리포인트
+│  │  ├─ docker-entrypoint.sh     # 컨테이너 엔트리포인트
+│  │  └─ env.example              # 환경변수 예제
 │  ├─ worker/                     # AI 워커(BullMQ consumer)
-│  │  ├─ src/                     # 워커 소스(AI provider, Redis/DB 연결 등)
-│  │  └─ Dockerfile               # 워커 컨테이너 이미지 빌드
+│  │  ├─ src/
+│  │  │  ├─ lib/                  # 워커 라이브러리 (agentAi, agentTools, aiProvider, embeddings, env, prisma, redis)
+│  │  │  └─ index.ts              # 워커 엔트리포인트
+│  │  ├─ Dockerfile               # 워커 컨테이너 이미지 빌드
+│  │  └─ env.example              # 환경변수 예제
 │  └─ desktop/                    # Electron 데스크톱 앱(UI)
-│     ├─ electron/                # Electron main/preload 프로세스
-│     └─ src/                     # Vue UI, API/WS 클라이언트, 상태관리, 유틸
+│     ├─ electron/                # Electron main/preload 프로세스 (main.cjs, main.ts, preload.cjs)
+│     ├─ src/
+│     │  ├─ api/                  # 서버 통신 (http.ts, ws.ts)
+│     │  ├─ components/           # Vue 컴포넌트 (CalendarView, ChatPanel, LoginView, RoomList, TopBar, ui/)
+│     │  ├─ stores/               # 상태관리 (calendar, session, theme, window)
+│     │  ├─ utils/                # 유틸리티 (pulseToSpec/)
+│     │  ├─ assets/               # 정적 자산 (fonts, video)
+│     │  ├─ App.vue               # 루트 컴포넌트
+│     │  └─ main.ts               # 앱 엔트리포인트
+│     ├─ electron-builder.json    # Electron 빌드 설정
+│     ├─ vite.config.ts           # Vite 설정
+│     ├─ tailwind.config.js       # Tailwind CSS 설정
+│     └─ package.json
 ├─ packages/
 │  └─ shared/                     # 공통 타입/유틸(앱들에서 공용 import)
-│     └─ src/
-├─ infra/                         # 로컬/배포용 인프라(docker compose, env)
+│     ├─ src/
+│     │  └─ index.ts              # 공통 타입/스키마 정의
+│     └─ package.json
+├─ infra/                         # 로컬/배포용 인프라
+│  ├─ docker-compose.yml          # 로컬 개발용 docker compose
+│  ├─ docker-compose.coolify.yml  # Coolify 배포용 docker compose
+│  └─ env.example                 # 인프라 환경변수 예제
 ├─ docs/                          # 개발/배포 문서
+│  ├─ AWS_DEPLOYMENT.md
+│  ├─ COOLIFY_AWS_EC2_GITHUB_CICD.md
+│  └─ LOCAL_AND_DEPLOY.md
 ├─ package.json                   # npm workspaces + 루트 스크립트
+├─ PRODUCTION_CHECKLIST.md        # 프로덕션 체크리스트
 └─ README.md
 ```
 
@@ -231,13 +260,13 @@ apps\desktop\release\JarvisChat Setup 0.1.0.exe
 
 공백 문제 피하려고 파일명 먼저 바꾸는 걸 추천.
 
-Rename-Item "G:\workspace1\jarvis-incident\apps\desktop\release\JarvisChat Setup 0.1.0.exe" "JarvisChat-Setup-0.1.0.exe"
+Rename-Item "G:\workspace1\jarvis-incident\apps\desktop\release\JarvisChat Setup 0.1.0.exe" "JarvisChat-Setup-0.1.1.exe"
 
 
 업로드:
 
 scp -i "C:\Users\ghkdsigm\Desktop\jarvis-key.pem" `
-  "G:\workspace1\jarvis-incident\apps\desktop\release\JarvisChat-Setup-0.1.0.exe" `
+  "G:\workspace1\jarvis-incident\apps\desktop\release\JarvisChat-Setup-0.1.1.exe" `
   ubuntu@54.66.155.158:/home/ubuntu/
 
 3) EC2 접속 (터미널로 들어가기)
@@ -246,8 +275,12 @@ ssh -i "C:\Users\ghkdsigm\Desktop\jarvis-key.pem" ubuntu@54.66.155.158
 
 4) EC2에서 다운로드 폴더로 이동
 sudo mkdir -p /var/www/download
-sudo mv /home/ubuntu/JarvisChat-Setup-0.1.0.exe /var/www/download/
+sudo mv /home/ubuntu/JarvisChat-Setup-0.1.1.exe /var/www/download/
 sudo ls -lh /var/www/download
+
+5) sudo rm /var/www/download/JarvisChat-Setup-0.1.0.exe
+
+이렇게 기존 0.1.0 버전은 지우면된다.
 
 ### 여기 위까지가 일렉트론 새배포
 
@@ -271,3 +304,60 @@ http://54.66.155.158:9000/JarvisChat-Setup-0.1.0.exe
 
 #### 일렉트론 개발모드
 컨트롤 시프트 i
+
+
+
+
+
+
+
+
+
+
+### 신규
+
+✅ 최종 구조 (가장 단순 + 안정적)
+
+다운로드 페이지 버튼은 항상:
+
+http://54.66.155.158:9000/DW-BRAIN-Setup.exe
+
+
+버전 번호는 파일명에 안 넣는다.
+항상 같은 파일명으로 덮어쓰기 한다.
+
+📦 매번 빌드/배포 루틴 (Latest 덮어쓰기 방식)
+1️⃣ 로컬 빌드
+cd G:\workspace1\jarvis-incident\apps\desktop
+npm run build
+
+
+생성 파일:
+
+JarvisChat Setup 0.1.0.exe
+
+2️⃣ 파일명을 “고정 이름”으로 변경 (버전 제거)
+Rename-Item `
+"G:\workspace1\jarvis-incident\apps\desktop\release\JarvisChat Setup 0.1.0.exe" `
+"DW-BRAIN-Setup.exe"
+
+
+👉 앞으로는 항상 이 이름 사용
+
+3️⃣ EC2로 업로드 (덮어쓰기)
+scp -i "C:\Users\ghkdsigm\Desktop\jarvis-key.pem" `
+"G:\workspace1\jarvis-incident\apps\desktop\release\DW-BRAIN-Setup.exe" `
+ubuntu@54.66.155.158:/home/ubuntu/
+
+4️⃣ EC2에서 다운로드 폴더로 이동 (덮어쓰기)
+sudo mv -f /home/ubuntu/DW-BRAIN-Setup.exe /var/www/download/DW-BRAIN-Setup.exe
+
+
+-f 옵션 = 기존 파일 있으면 강제로 덮어쓰기
+
+5️⃣ 끝
+
+다운로드 페이지 버튼은 항상:
+
+http://54.66.155.158:9000/DW-BRAIN-Setup.exe
+

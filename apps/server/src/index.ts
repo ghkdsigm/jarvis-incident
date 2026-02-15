@@ -12,6 +12,7 @@ import { userRoutes } from "./routes/users.js";
 import { holidayRoutes } from "./routes/holidays.js";
 import { speechRoutes } from "./routes/speech.js";
 import { calendarRoutes } from "./routes/calendar.js";
+import { downloadRoutes } from "./routes/download.js";
 import { registerWs } from "./ws/hub.js";
 import { prisma } from "./lib/prisma.js";
 import { redis } from "./lib/redis.js";
@@ -81,6 +82,7 @@ await app.register(userRoutes);
 await app.register(holidayRoutes);
 await app.register(speechRoutes);
 await app.register(calendarRoutes);
+await app.register(downloadRoutes);
 await registerWs(app);
 
 // 전역 에러 핸들러

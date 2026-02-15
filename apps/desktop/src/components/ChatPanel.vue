@@ -137,8 +137,27 @@
               />
             </svg>
           </button>
-          <button class="px-2 py-1 text-xs rounded t-btn-secondary" @click="openInvite">
-            + 동료추가
+          <button class="px-2 py-1 text-xs rounded t-btn-secondary inline-flex items-center gap-1" @click="openInvite">
+            + 
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+              <path
+                d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"
+                stroke="currentColor"
+                stroke-width="1.8"
+                stroke-linecap="round"
+                stroke-linejoin="round"
+              />
+              <circle
+                cx="12"
+                cy="7"
+                r="4"
+                stroke="currentColor"
+                stroke-width="1.8"
+                stroke-linecap="round"
+                stroke-linejoin="round"
+              />
+            </svg>
+            동료추가
           </button>
           <button
             class="px-2 py-1 text-xs rounded t-btn-secondary"

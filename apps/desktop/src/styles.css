@@ -154,10 +154,14 @@
     --avatar-bg: #e2e8f0; /* slate-200 */
     --avatar-text: #334155; /* slate-700 */
 
+    /* Chat bubbles (light mode overrides) */
+    --bubble-me-bg: #0aafa0;
+    --bubble-me-border: #0aafa0;
+
     --bubble-bot-bg: #ffffff;
     --bubble-bot-border: #00AD50;
     --bubble-bot-text: #0f172a;
-    --bubble-other-bg: #f1f5f9;
+    --bubble-other-bg: #ffffff;
     --bubble-other-border: #cbd5e1;
     --bubble-other-text: #0f172a;
     --bubble-system-text: #475569;

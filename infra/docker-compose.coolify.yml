@@ -51,14 +51,15 @@ services:
 
       traefik.http.middlewares.redirect-to-https.redirectscheme.scheme: "https"
 
-      traefik.http.routers.jarvis-http.entryPoints: "web"
+      traefik.http.routers.jarvis-http.entryPoints: "http"
       traefik.http.routers.jarvis-http.rule: "Host(`jck40cggccckkkoo4844c44o.54.66.155.158.sslip.io`) && PathPrefix(`/`)"
       traefik.http.routers.jarvis-http.middlewares: "redirect-to-https"
 
-      traefik.http.routers.jarvis-https.entryPoints: "websecure"
+      traefik.http.routers.jarvis-https.entryPoints: "https"
       traefik.http.routers.jarvis-https.rule: "Host(`jck40cggccckkkoo4844c44o.54.66.155.158.sslip.io`) && PathPrefix(`/`)"
       traefik.http.routers.jarvis-https.tls: "true"
       traefik.http.routers.jarvis-https.tls.certresolver: "letsencrypt"
+
 
   worker:
     build:

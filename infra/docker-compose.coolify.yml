@@ -18,7 +18,7 @@ services:
     image: redis:7-alpine
     restart: unless-stopped
 
-    server:
+  server:
     build:
       context: ..
       dockerfile: apps/server/Dockerfile
@@ -59,9 +59,6 @@ services:
       - traefik.http.routers.jarvis-https.tls=true
       - traefik.http.routers.jarvis-https.tls.certresolver=letsencrypt
 
-
-
-
   worker:
     build:
       context: ..
@@ -91,8 +88,5 @@ services:
     labels:
       - traefik.enable=false
 
-
 volumes:
   jarvis_pg:
-
-

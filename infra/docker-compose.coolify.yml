@@ -8,7 +8,7 @@ services:
     volumes:
       - jarvis_pg:/var/lib/postgresql/data
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-jarvis} -d ${POSTGRES_DB:-jarvis_chat}"]
+      test: "pg_isready -U ${POSTGRES_USER:-jarvis} -d ${POSTGRES_DB:-jarvis_chat}"
       interval: 5s
       timeout: 5s
       retries: 15
@@ -46,21 +46,19 @@ services:
         condition: service_started
     restart: unless-stopped
     labels:
-      labels:
-        - traefik.enable=true
-        - traefik.http.services.jarvis.loadbalancer.server.port=8080
+      traefik.enable: "true"
+      traefik.http.services.jarvis.loadbalancer.server.port: "8080"
 
-        - traefik.http.middlewares.redirect-to-https.redirectscheme.scheme=https
+      traefik.http.middlewares.redirect-to-https.redirectscheme.scheme: "https"
 
-        - traefik.http.routers.jarvis-http.entryPoints=web
-        - traefik.http.routers.jarvis-http.rule=Host(`jck40cggccckkkoo4844c44o.54.66.155.158.sslip.io`) && PathPrefix(`/`)
-        - traefik.http.routers.jarvis-http.middlewares=redirect-to-https
+      traefik.http.routers.jarvis-http.entryPoints: "web"
+      traefik.http.routers.jarvis-http.rule: "Host(`jck40cggccckkkoo4844c44o.54.66.155.158.sslip.io`) && PathPrefix(`/`)"
+      traefik.http.routers.jarvis-http.middlewares: "redirect-to-https"
 
-        - traefik.http.routers.jarvis-https.entryPoints=websecure
-        - traefik.http.routers.jarvis-https.rule=Host(`jck40cggccckkkoo4844c44o.54.66.155.158.sslip.io`) && PathPrefix(`/`)
-        - traefik.http.routers.jarvis-https.tls=true
-        - traefik.http.routers.jarvis-https.tls.certresolver=letsencrypt
-
+      traefik.http.routers.jarvis-https.entryPoints: "websecure"
+      traefik.http.routers.jarvis-https.rule: "Host(`jck40cggccckkkoo4844c44o.54.66.155.158.sslip.io`) && PathPrefix(`/`)"
+      traefik.http.routers.jarvis-https.tls: "true"
+      traefik.http.routers.jarvis-https.tls.certresolver: "letsencrypt"
 
   worker:
     build:
@@ -74,9 +72,9 @@ services:
       NODE_ENV: production
       DATABASE_URL: postgresql://${POSTGRES_USER:-jarvis}:${POSTGRES_PASSWORD:-jarvis}@postgres:5432/${POSTGRES_DB:-jarvis_chat}?schema=public
       REDIS_URL: redis://redis:6379
-      AI_PROVIDER: '${AI_PROVIDER:-mock}'
-      OPENAI_API_KEY: '${OPENAI_API_KEY-}'
-      OPENAI_MODEL: '${OPENAI_MODEL:-gpt-4o-mini}'
+      AI_PROVIDER: ${AI_PROVIDER:-mock}
+      OPENAI_API_KEY: ${OPENAI_API_KEY-}
+      OPENAI_MODEL: ${OPENAI_MODEL:-gpt-4o-mini}
       AI_QUEUE_NAME: jarvis_ai_jobs
       PUBSUB_CHANNEL: jarvis_room_events
       HTTP_PROXY: ${HTTP_PROXY-}
@@ -89,7 +87,7 @@ services:
         condition: service_started
     restart: unless-stopped
     labels:
-      - traefik.enable=false
+      traefik.enable: "false"
 
 volumes:
   jarvis_pg:

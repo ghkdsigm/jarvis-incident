@@ -118,8 +118,27 @@ export async function roomRoutes(app: FastifyInstance) {
 
         for (const targetUserId of memberUserIds) {
           if (targetUserId === userId) continue;
-          const evt = { type: "room.added", targetUserId, payload: { room: roomDto } };
-          await redisPub.publish(env.pubsubChannel, JSON.stringify(evt));
+          const evt = {
+            type: "room.added",
+            // mark origin so this instance can avoid double-delivery when also receiving from Redis
+            origin: (app as any).wsInstanceId,
+            targetUserId,
+            payload: { room: roomDto }
+          };
+
+          // Best-effort local delivery (works even if Redis pubsub is unavailable)
+          try {
+            (app as any).wsSendToUsers?.([targetUserId], evt);
+          } catch {
+            // ignore
+          }
+
+          // Cross-instance delivery
+          try {
+            await redisPub.publish(env.pubsubChannel, JSON.stringify(evt));
+          } catch {
+            // ignore
+          }
         }
       }
     }
@@ -279,12 +298,34 @@ export async function roomRoutes(app: FastifyInstance) {
         roomId,
         payload: { roomId, userId: addedUserId, userName }
       };
-      await redisPub.publish(env.pubsubChannel, JSON.stringify(event));
+      try {
+        await redisPub.publish(env.pubsubChannel, JSON.stringify(event));
+      } catch {
+        // ignore
+      }
 
       // 새로 추가된 사용자에게는 user-target 이벤트로 방이 자동으로 리스트에 추가되도록 알림
       if (roomDto) {
-        const evt = { type: "room.added", targetUserId: addedUserId, payload: { room: roomDto } };
-        await redisPub.publish(env.pubsubChannel, JSON.stringify(evt));
+        const evt = {
+          type: "room.added",
+          origin: (app as any).wsInstanceId,
+          targetUserId: addedUserId,
+          payload: { room: roomDto }
+        };
+
+        // Best-effort local delivery (works even if Redis pubsub is unavailable)
+        try {
+          (app as any).wsSendToUsers?.([addedUserId], evt);
+        } catch {
+          // ignore
+        }
+
+        // Cross-instance delivery
+        try {
+          await redisPub.publish(env.pubsubChannel, JSON.stringify(evt));
+        } catch {
+          // ignore
+        }
       }
     }
 

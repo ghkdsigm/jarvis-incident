@@ -4,6 +4,7 @@ import { prisma } from "../lib/prisma.js";
 import { aiQueue } from "../lib/queues.js";
 import { env } from "../lib/env.js";
 import { redisSub, redisPub } from "../lib/redis.js";
+import { randomUUID } from "crypto";
 
 type WsConn = { socket: any; userId: string; rooms: Set<string> };
 
@@ -11,6 +12,8 @@ export async function registerWs(app: FastifyInstance) {
   const conns = new Set<WsConn>();
   const roomIndex = new Map<string, Set<WsConn>>();
   const userConnCount = new Map<string, number>();
+
+  const INSTANCE_ID = process.env.INSTANCE_ID || randomUUID();
 
   const DELETED_PLACEHOLDER = "(삭제된 메시지)";
 
@@ -40,6 +43,14 @@ export async function registerWs(app: FastifyInstance) {
     }
   }
 
+  // Allow HTTP routes to deliver user-target events directly (avoids relying solely on Redis pubsub).
+  try {
+    (app as any).wsInstanceId = INSTANCE_ID;
+    (app as any).wsSendToUsers = sendToUsers;
+  } catch {
+    // ignore
+  }
+
   async function ensureJoined(conn: WsConn, roomId: string): Promise<boolean> {
     if (conn.rooms.has(roomId)) return true;
     const membership = await prisma.roomMember.findUnique({
@@ -57,6 +68,8 @@ export async function registerWs(app: FastifyInstance) {
   redisSub.on("message", (_channel, payload) => {
     try {
       const evt = JSON.parse(payload);
+      // Avoid double-delivery for user-target events that were already delivered locally by this instance.
+      if (evt?.targetUserId && evt?.origin && evt.origin === INSTANCE_ID) return;
       if (evt?.targetUserId) {
         sendToUsers([evt.targetUserId], evt);
       } else if (evt?.roomId) {

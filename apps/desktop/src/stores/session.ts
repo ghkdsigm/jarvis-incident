@@ -625,7 +625,9 @@ export const useSessionStore = defineStore("session", {
         this.applyRoomOrdering(roomId);
 
         // 새로 추가된 방은 자동으로 구독(join)해서, 내가 리스트 새로고침을 안 해도 메시지 이벤트를 받도록 한다.
-        if (this.ws && !this.joinedByRoom[roomId]) {
+        // joinedByRoom: undefined = never joined; false = join pending; true = joined
+        // Only send join when we haven't attempted yet.
+        if (this.ws && this.joinedByRoom[roomId] == null) {
           this.joinedByRoom[roomId] = false;
           this.ws.send({ type: "room.join", roomId });
         }

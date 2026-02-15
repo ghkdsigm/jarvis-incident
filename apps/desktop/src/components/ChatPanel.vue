@@ -433,16 +433,14 @@
                         class="msg-attach rounded-lg"
                       >
                         <template v-if="a.kind === 'image'">
-                          <a
+                          <div
                             v-if="a.dataUrl"
-                            :href="a.dataUrl"
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            class="block"
+                            class="block cursor-pointer"
                             :title="a.name"
+                            @click="openImagePopup(a.dataUrl, a.name)"
                           >
                             <img :src="a.dataUrl" :alt="a.name" class="msg-attach-image rounded-md object-cover" />
-                          </a>
+                          </div>
                           <div v-else class="text-xs t-text-subtle">이미지(미리보기 불가): {{ a.name }}</div>
                           <div class="mt-1 text-[11px] truncate" :class="theme === 'dark' ? 'text-white' : 'text-gray-500'">{{ a.name }} · {{ formatBytes(a.size) }}</div>
                         </template>
@@ -616,20 +614,18 @@
                             class="msg-attach rounded-lg border t-border bg-white/60 p-2"
                           >
                             <template v-if="a.kind === 'image'">
-                              <a
+                              <div
                                 v-if="a.dataUrl"
-                                :href="a.dataUrl"
-                                target="_blank"
-                                rel="noopener noreferrer"
-                                class="block"
+                                class="block cursor-pointer"
                                 :title="a.name"
+                                @click="openImagePopup(a.dataUrl, a.name)"
                               >
                                 <img
                                   :src="a.dataUrl"
                                   :alt="a.name"
                                   class="msg-attach-image rounded-md border t-border object-cover"
                                 />
-                              </a>
+                              </div>
                               <div v-else class="text-xs t-text-subtle">이미지(미리보기 불가): {{ a.name }}</div>
                               <div class="mt-1 text-[11px] t-text-muted truncate">{{ a.name }} · {{ formatBytes(a.size) }}</div>
                             </template>
@@ -696,16 +692,14 @@
                         class="msg-attach rounded-lg border t-border bg-white/60 p-2"
                       >
                         <template v-if="a.kind === 'image'">
-                          <a
+                          <div
                             v-if="a.dataUrl"
-                            :href="a.dataUrl"
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            class="block"
+                            class="block cursor-pointer"
                             :title="a.name"
+                            @click="openImagePopup(a.dataUrl, a.name)"
                           >
                             <img :src="a.dataUrl" :alt="a.name" class="msg-attach-image rounded-md border t-border object-cover" />
-                          </a>
+                          </div>
                           <div v-else class="text-xs t-text-subtle">이미지(미리보기 불가): {{ a.name }}</div>
                           <div class="mt-1 text-[11px] t-text-muted truncate">{{ a.name }} · {{ formatBytes(a.size) }}</div>
                         </template>
@@ -1997,6 +1991,54 @@
       전달하기
     </button>
   </div>
+
+  <!-- 이미지 팝업 -->
+  <div
+    v-if="imagePopupOpen"
+    class="fixed inset-0 z-50 flex items-center justify-center bg-black/80"
+    @click.self="closeImagePopup"
+    @keydown.esc="closeImagePopup"
+  >
+    <div class="relative max-w-[90vw] max-h-[90vh] flex flex-col">
+      <button
+        class="absolute top-2 right-2 z-10 w-8 h-8 flex items-center justify-center rounded-full bg-black/60 hover:bg-black/80 text-white text-xl leading-none"
+        @click="closeImagePopup"
+        title="닫기"
+      >
+        ×
+      </button>
+      <img
+        v-if="imagePopupSrc"
+        :src="imagePopupSrc"
+        :alt="imagePopupName || '이미지'"
+        class="max-w-full max-h-[90vh] object-contain"
+      />
+      <div v-if="imagePopupName" class="mt-2 text-sm text-white text-center">{{ imagePopupName }}</div>
+    </div>
+  </div>
+
+  <!-- 화면 공유 팝업 -->
+  <div
+    v-if="screensharePopupOpen"
+    class="fixed inset-0 z-50 flex items-center justify-center bg-black"
+    @keydown.esc="closeScreensharePopup"
+  >
+    <div class="relative w-full h-full flex flex-col">
+      <button
+        class="absolute top-2 right-2 z-10 w-8 h-8 flex items-center justify-center rounded-full bg-black/60 hover:bg-black/80 text-white text-xl leading-none"
+        @click="closeScreensharePopup"
+        title="닫기"
+      >
+        ×
+      </button>
+      <video
+        ref="remoteVideoPopup"
+        class="w-full h-full object-contain bg-black"
+        autoplay
+        playsinline
+      />
+    </div>
+  </div>
 </template>
 
 <script setup lang="ts">
@@ -3237,7 +3279,14 @@ function toggleTranslate() {
 }
 const remoteVideo = ref<HTMLVideoElement | null>(null);
 const localVideo = ref<HTMLVideoElement | null>(null);
+const remoteVideoPopup = ref<HTMLVideoElement | null>(null);
 let screensharePopoutWin: Window | null = null;
+
+// 이미지/화면 공유 팝업 상태
+const imagePopupOpen = ref(false);
+const imagePopupSrc = ref<string | null>(null);
+const imagePopupName = ref<string | null>(null);
+const screensharePopupOpen = ref(false);
 
 function syncScreensharePopout(stream: MediaStream | null) {
   if (!screensharePopoutWin || screensharePopoutWin.closed) {
@@ -3253,50 +3302,23 @@ function syncScreensharePopout(stream: MediaStream | null) {
 function openScreensharePopout() {
   const stream = store.screenShareRoomId === store.activeRoomId ? store.screenShareRemote : null;
   if (!stream) return;
+  screensharePopupOpen.value = true;
+}
 
-  if (screensharePopoutWin && !screensharePopoutWin.closed) {
-    screensharePopoutWin.focus();
-    syncScreensharePopout(stream);
-    return;
-  }
+function closeScreensharePopup() {
+  screensharePopupOpen.value = false;
+}
 
-  // NOTE: srcObject 전달을 위해 opener 접근이 필요하므로 noopener를 쓰지 않는다 (데스크톱 앱 내부 사용).
-  const w = window.open("", "jarvis-screenshare-popout", "width=1200,height=800");
-  if (!w) return;
-  screensharePopoutWin = w;
+function openImagePopup(src: string, name: string) {
+  imagePopupSrc.value = src;
+  imagePopupName.value = name;
+  imagePopupOpen.value = true;
+}
 
-  w.document.open();
-  w.document.write(`<!doctype html>
-<html>
-  <head>
-    <meta charset="utf-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>화면 공유</title>
-    <style>
-      html, body { margin: 0; height: 100%; background: #000; }
-      .wrap { height: 100%; display: flex; align-items: center; justify-content: center; }
-      video { width: 100%; height: 100%; object-fit: contain; background: #000; }
-      .hint { position: fixed; top: 10px; left: 10px; color: rgba(255,255,255,0.75); font: 12px/1.4 system-ui, -apple-system, Segoe UI, Roboto, sans-serif; }
-    </style>
-  </head>
-  <body>
-    <div class="hint">ESC로 닫기</div>
-    <div class="wrap">
-      <video id="jarvis-screenshare-video" autoplay playsinline></video>
-    </div>
-  </body>
-</html>`);
-  w.document.close();
-
-  try {
-    w.addEventListener("keydown", (e: any) => {
-      if (e?.key === "Escape") w.close();
-    });
-  } catch {
-    // ignore
-  }
-
-  syncScreensharePopout(stream);
+function closeImagePopup() {
+  imagePopupOpen.value = false;
+  imagePopupSrc.value = null;
+  imagePopupName.value = null;
 }
 
 const DELETED_PLACEHOLDER = "(삭제된 메시지)";
@@ -4888,7 +4910,22 @@ watch(
     await nextTick();
     const show = store.screenShareRoomId === store.activeRoomId ? s : null;
     if (remoteVideo.value) (remoteVideo.value as any).srcObject = show ?? null;
+    if (remoteVideoPopup.value) (remoteVideoPopup.value as any).srcObject = screensharePopupOpen.value ? show ?? null : null;
     syncScreensharePopout(show ?? null);
+  },
+  { immediate: true }
+);
+
+watch(
+  screensharePopupOpen,
+  async (open) => {
+    await nextTick();
+    if (open && remoteVideoPopup.value) {
+      const stream = store.screenShareRoomId === store.activeRoomId ? store.screenShareRemote : null;
+      if (remoteVideoPopup.value) (remoteVideoPopup.value as any).srcObject = stream ?? null;
+    } else if (remoteVideoPopup.value) {
+      (remoteVideoPopup.value as any).srcObject = null;
+    }
   },
   { immediate: true }
 );

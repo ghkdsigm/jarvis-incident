@@ -13,7 +13,7 @@ type DevCreds = { email: string; name: string };
 // ---- Incoming message sound (no asset file; generate a short beep) ----
 let beepCtx: AudioContext | null = null;
 let lastBeepAt = 0;
-async function playIncomingBeep(durationMs = 950) {
+async function playIncomingBeep(durationMs = 1500) {
   const now = Date.now();
   // throttle to avoid spam (e.g., bursts of messages)
   if (now - lastBeepAt < 1200) return;
@@ -792,7 +792,8 @@ export const useSessionStore = defineStore("session", {
 
         // 방 목록에 없는 roomId면(=나를 새로 추가했는데 클라가 모르던 방), 즉시 목록을 갱신한다.
         if (!this.rooms.some((r) => r.id === m.roomId)) {
-          Promise.resolve().then(() => this.reloadRooms()).catch(() => {
+          // 즉시 방 목록을 갱신하여 Teams처럼 자동으로 채팅방이 추가되도록 함
+          this.reloadRooms().catch(() => {
             /* ignore */
           });
         }

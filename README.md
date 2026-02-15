@@ -213,3 +213,61 @@ scp -i "C:\Users\ghkdsigm\Desktop\jarvis-key.pem" `
 sudo mkdir -p /var/www/download
 sudo mv /home/ubuntu/JarvisChat-Setup-0.1.0.exe /var/www/download/
 sudo ls -lh /var/www/download
+
+
+
+############################
+A. 로컬 빌드 → EC2에 올려서 배포 (가장 빠른 현실 플로우)
+1) Windows에서 exe 빌드
+cd G:\workspace1\jarvis-incident\apps\desktop
+npm ci
+npm run build
+
+
+결과물:
+apps\desktop\release\JarvisChat Setup 0.1.0.exe
+
+2) 빌드 결과물을 EC2로 업로드 (scp)
+
+공백 문제 피하려고 파일명 먼저 바꾸는 걸 추천.
+
+Rename-Item "G:\workspace1\jarvis-incident\apps\desktop\release\JarvisChat Setup 0.1.0.exe" "JarvisChat-Setup-0.1.0.exe"
+
+
+업로드:
+
+scp -i "C:\Users\ghkdsigm\Desktop\jarvis-key.pem" `
+  "G:\workspace1\jarvis-incident\apps\desktop\release\JarvisChat-Setup-0.1.0.exe" `
+  ubuntu@54.66.155.158:/home/ubuntu/
+
+3) EC2 접속 (터미널로 들어가기)
+Windows PowerShell에서 접속
+ssh -i "C:\Users\ghkdsigm\Desktop\jarvis-key.pem" ubuntu@54.66.155.158
+
+4) EC2에서 다운로드 폴더로 이동
+sudo mkdir -p /var/www/download
+sudo mv /home/ubuntu/JarvisChat-Setup-0.1.0.exe /var/www/download/
+sudo ls -lh /var/www/download
+
+### 여기 위까지가 일렉트론 새배포
+
+5) 9000 포트 다운로드 서버(nginx) “항상 켜두기”
+
+너 지금은 nginx로 9000 리슨 중이니까, systemd에 의해 자동으로 올라옴(=항상 켜짐).
+
+확인:
+
+sudo systemctl enable nginx
+sudo systemctl restart nginx
+sudo ss -lntp | grep :9000
+
+6) 다운로드 링크
+
+보안그룹에서 9000 TCP 인바운드 허용된 상태면:
+
+http://54.66.155.158:9000/JarvisChat-Setup-0.1.0.exe
+
+
+
+#### 일렉트론 개발모드
+컨트롤 시프트 i

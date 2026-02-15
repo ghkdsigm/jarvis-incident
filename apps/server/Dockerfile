@@ -21,6 +21,7 @@ RUN npm config set fetch-retries 5 \
 
 # Install workspace deps (needs repo root build context)
 COPY package.json package-lock.json ./
+# Copy workspace manifests up-front so npm workspaces resolve correctly (keep directory structure)
 COPY apps/server/package.json ./apps/server/package.json
 COPY apps/worker/package.json ./apps/worker/package.json
 COPY apps/desktop/package.json ./apps/desktop/package.json

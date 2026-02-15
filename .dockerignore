@@ -1,0 +1,26 @@
+.git
+.github
+.vscode
+.idea
+
+**/.DS_Store
+**/*.log
+
+# node / workspace artifacts
+**/node_modules
+**/dist
+
+# desktop build artifacts (very large, not needed for server/worker images)
+apps/desktop/release
+apps/desktop/dist
+
+# local env / secrets
+**/.env
+**/.env.*
+
+# misc
+coverage
+tmp
+temp
+artifacts
+

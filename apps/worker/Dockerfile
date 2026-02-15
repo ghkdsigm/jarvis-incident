@@ -20,11 +20,14 @@ RUN npm config set fetch-retries 5 \
   && npm config set fetch-retry-maxtimeout 120000
 
 # Install workspace deps (needs repo root build context)
-COPY package.json ./
+COPY package.json package-lock.json ./
 COPY apps/worker/package.json ./apps/worker/package.json
+COPY apps/server/package.json ./apps/server/package.json
+COPY apps/desktop/package.json ./apps/desktop/package.json
 COPY packages/shared/package.json ./packages/shared/package.json
 
-RUN npm install -w @jarvis/shared -w @jarvis/worker --no-audit --no-fund
+# Use lockfile for deterministic builds (Coolify/CI) and always include dev deps for TypeScript build
+RUN npm ci -w @jarvis/shared -w @jarvis/worker --include=dev --no-audit --no-fund
 
 # Copy sources
 COPY packages/shared ./packages/shared

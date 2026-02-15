@@ -84,11 +84,11 @@ await app.register(calendarRoutes);
 await registerWs(app);
 
 // 전역 에러 핸들러
-app.setErrorHandler((error, request, reply) => {
+app.setErrorHandler((error: any, request, reply) => {
   app.log.error({ err: error, url: request.url, method: request.method }, "Unhandled error");
   
   // Prisma 에러 처리
-  if (error.code === "P2002") {
+  if (error?.code === "P2002") {
     return reply.code(409).send({ error: "DUPLICATE_ENTRY", message: "Resource already exists" });
   }
   

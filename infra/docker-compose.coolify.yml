@@ -18,7 +18,7 @@ services:
     image: redis:7-alpine
     restart: unless-stopped
 
-  server:
+    server:
     build:
       context: ..
       dockerfile: apps/server/Dockerfile
@@ -45,7 +45,7 @@ services:
       redis:
         condition: service_started
     restart: unless-stopped
-        labels:
+    labels:
       - traefik.enable=true
       - traefik.http.services.jarvis.loadbalancer.server.port=8080
 
@@ -58,6 +58,7 @@ services:
       - traefik.http.routers.jarvis-https.rule=Host(`z0c04owsgk40g80kow404wgc.54.66.155.158.sslip.io`) && PathPrefix(`/`)
       - traefik.http.routers.jarvis-https.tls=true
       - traefik.http.routers.jarvis-https.tls.certresolver=letsencrypt
+
 
 
 

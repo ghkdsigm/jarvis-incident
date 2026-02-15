@@ -1,0 +1,20 @@
+{
+  "appId": "com.company.jarvischat",
+  "productName": "JarvisChat",
+  "directories": {
+    "app": "apps/desktop",
+    "output": "apps/desktop/release"
+  },
+  "files": [
+    "dist/**",
+    "electron/**"
+  ],
+  "extraMetadata": {
+    "main": "electron/main.cjs"
+  },
+  "win": {
+    "target": ["nsis"]
+  }
+}
+
+

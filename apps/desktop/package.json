@@ -7,7 +7,8 @@
   "scripts": {
     "predev": "npm run -w @jarvis/shared build",
     "dev": "concurrently -k \"vite\" \"electron .\"",
-    "build": "vite build && electron-builder",
+    "build": "vite build && electron-builder --projectDir ../../ --config electron-builder.desktop.json",
+    "build:dir": "vite build && electron-builder --projectDir ../../ --config electron-builder.desktop.json --win --dir",
     "lint": "eslint .",
     "test": "vitest run",
     "test:watch": "vitest"
@@ -24,7 +25,7 @@
     "@vue/test-utils": "^2.4.6",
     "autoprefixer": "^10.4.20",
     "concurrently": "^9.1.2",
-    "electron": "^32.2.2",
+    "electron": "32.3.3",
     "electron-builder": "^25.1.8",
     "eslint": "^9.16.0",
     "postcss": "^8.4.49",

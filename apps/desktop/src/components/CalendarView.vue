@@ -36,65 +36,74 @@
             </svg>
           </button>
 
-          <div class="relative" ref="yearMonthDropdownRef">
-            <button
-              type="button"
-              class="px-3 py-2 rounded inline-flex items-center gap-1.5 text-lg font-bold tabular-nums min-w-[140px] justify-center transition-colors"
-              :class="theme === 'dark' ? 'text-white hover:bg-zinc-700' : 'text-[#262626] hover:bg-gray-200'"
-              aria-haspopup="listbox"
-              :aria-expanded="yearMonthDropdownOpen"
-              @click.stop="yearMonthDropdownOpen = !yearMonthDropdownOpen"
-            >
-              {{ displayYear }}년 {{ displayMonth + 1 }}월
-              <svg
-                class="w-5 h-5 shrink-0 transition-transform"
-                :class="yearMonthDropdownOpen ? 'rotate-180' : ''"
-                viewBox="0 0 24 24"
-                fill="none"
-                stroke="currentColor"
-                stroke-width="2"
-                stroke-linecap="round"
-                stroke-linejoin="round"
-              >
-                <path d="M6 9l6 6 6-6"/>
-              </svg>
-            </button>
-            <div
-              v-show="yearMonthDropdownOpen"
-              class="absolute top-full left-1/2 -translate-x-1/2 mt-1 z-20 rounded-lg border t-border shadow-lg py-3 px-4 min-w-[200px]"
-              :class="theme === 'dark' ? 'bg-zinc-800' : 'bg-white'"
-              role="listbox"
-            >
-              <div class="flex gap-3 items-end">
-                <div class="flex-1">
-                  <label class="block text-xs font-medium mb-1" :class="theme === 'dark' ? 'text-gray-400' : 'text-gray-500'"></label>
-                  <select
-                    v-model.number="pickerYear"
-                    class="w-full h-9 px-2 rounded border t-border t-input text-sm"
-                    @change="applyYearMonth"
-                  >
-                    <option v-for="y in yearOptions" :key="y" :value="y">{{ y }}</option>
-                  </select>
-                </div>
-                <div class="flex-1">
-                  <label class="block text-xs font-medium mb-1" :class="theme === 'dark' ? 'text-gray-400' : 'text-gray-500'"></label>
-                  <select
-                    v-model.number="pickerMonth"
-                    class="w-full h-9 px-2 rounded border t-border t-input text-sm"
-                    @change="applyYearMonth"
-                  >
-                    <option v-for="m in 12" :key="m" :value="m">{{ m }}</option>
-                  </select>
-                </div>
-              </div>
+          <div class="flex items-center gap-2">
+            <div class="relative" ref="yearMonthDropdownRef">
               <button
                 type="button"
-                class="w-full mt-3 py-2 text-sm rounded t-btn-primary"
-                @click="applyYearMonthAndClose"
+                class="px-3 py-2 rounded inline-flex items-center gap-1.5 text-lg font-bold tabular-nums min-w-[140px] justify-center transition-colors"
+                :class="theme === 'dark' ? 'text-white hover:bg-zinc-700' : 'text-[#262626] hover:bg-gray-200'"
+                aria-haspopup="listbox"
+                :aria-expanded="yearMonthDropdownOpen"
+                @click.stop="yearMonthDropdownOpen = !yearMonthDropdownOpen"
               >
-                적용
+                {{ displayYear }}년 {{ displayMonth + 1 }}월
+                <svg
+                  class="w-5 h-5 shrink-0 transition-transform"
+                  :class="yearMonthDropdownOpen ? 'rotate-180' : ''"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  stroke-width="2"
+                  stroke-linecap="round"
+                  stroke-linejoin="round"
+                >
+                  <path d="M6 9l6 6 6-6"/>
+                </svg>
               </button>
+              <div
+                v-show="yearMonthDropdownOpen"
+                class="absolute top-full left-1/2 -translate-x-1/2 mt-1 z-20 rounded-lg border t-border shadow-lg py-3 px-4 min-w-[200px]"
+                :class="theme === 'dark' ? 'bg-zinc-800' : 'bg-white'"
+                role="listbox"
+              >
+                <div class="flex gap-3 items-end">
+                  <div class="flex-1">
+                    <label class="block text-xs font-medium mb-1" :class="theme === 'dark' ? 'text-gray-400' : 'text-gray-500'"></label>
+                    <select
+                      v-model.number="pickerYear"
+                      class="w-full h-9 px-2 rounded border t-border t-input text-sm"
+                      @change="applyYearMonth"
+                    >
+                      <option v-for="y in yearOptions" :key="y" :value="y">{{ y }}</option>
+                    </select>
+                  </div>
+                  <div class="flex-1">
+                    <label class="block text-xs font-medium mb-1" :class="theme === 'dark' ? 'text-gray-400' : 'text-gray-500'"></label>
+                    <select
+                      v-model.number="pickerMonth"
+                      class="w-full h-9 px-2 rounded border t-border t-input text-sm"
+                      @change="applyYearMonth"
+                    >
+                      <option v-for="m in 12" :key="m" :value="m">{{ m }}</option>
+                    </select>
+                  </div>
+                </div>
+                <button
+                  type="button"
+                  class="w-full mt-3 py-2 text-sm rounded t-btn-primary"
+                  @click="applyYearMonthAndClose"
+                >
+                  적용
+                </button>
+              </div>
             </div>
+            <button
+              type="button"
+              class="px-3 py-1.5 text-sm rounded t-btn-secondary"
+              @click="goToToday"
+            >
+              오늘
+            </button>
           </div>
 
           <button
@@ -273,6 +282,9 @@
           <div class="text-sm font-medium" :class="theme === 'dark' ? 'text-white' : 'text-[#262626]'">{{ selectedEvent.title }}</div>
           <div class="text-xs t-text-muted">
             {{ formatDateRange(selectedEvent.start, selectedEvent.end) }}
+            <span class="ml-2 font-semibold" :class="calculateDDay(selectedEvent.start) === 0 ? 'text-red-500' : calculateDDay(selectedEvent.start) > 0 ? 'text-blue-500' : 'text-gray-500'">
+              {{ formatDDay(calculateDDay(selectedEvent.start)) }}
+            </span>
           </div>
           <div class="flex gap-2 mt-3">
             <div class="w-4 h-4 rounded-full shrink-0" :style="{ backgroundColor: selectedEvent.color }" />
@@ -454,6 +466,9 @@ function prevMonth() {
 function nextMonth() {
   currentDate.value = new Date(displayYear.value, displayMonth.value + 1);
 }
+function goToToday() {
+  currentDate.value = new Date();
+}
 
 const eventModalOpen = ref(false);
 const detailModalOpen = ref(false);
@@ -562,6 +577,22 @@ function formatDateRange(start: string, end: string): string {
   const e = end.slice(0, 10);
   if (s === e) return s;
   return `${s} ~ ${e}`;
+}
+
+function calculateDDay(eventDate: string): number {
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  const event = new Date(eventDate.slice(0, 10));
+  event.setHours(0, 0, 0, 0);
+  const diffTime = event.getTime() - today.getTime();
+  const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+  return diffDays;
+}
+
+function formatDDay(dDays: number): string {
+  if (dDays === 0) return "D-DAY";
+  if (dDays > 0) return `D-${dDays}`;
+  return `D+${Math.abs(dDays)}`;
 }
 
 </script>

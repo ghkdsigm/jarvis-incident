@@ -1,0 +1,42 @@
+name: desktop-build
+
+on:
+  workflow_dispatch: {}
+  push:
+    tags:
+      - "desktop-v*"
+
+jobs:
+  build-windows:
+    runs-on: windows-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - name: Install deps
+        run: npm ci
+
+      - name: Build desktop (electron-builder)
+        run: npm run -w @jarvis/desktop build
+
+      - name: Zip win-unpacked (fallback-friendly)
+        shell: pwsh
+        run: |
+          if (Test-Path "apps/desktop/release/win-unpacked") {
+            Compress-Archive -Path "apps/desktop/release/win-unpacked/*" -DestinationPath "apps/desktop/release/JarvisChat-win-unpacked.zip" -Force
+          }
+
+      - name: Upload artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: jarvis-desktop-windows
+          path: |
+            apps/desktop/release/**
+
+

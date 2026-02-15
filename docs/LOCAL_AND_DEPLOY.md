@@ -162,6 +162,14 @@ docker compose up -d
 - **방법**: `apps/desktop`에서 `npm run build` (Vite 빌드 + electron-builder 실행).  
 - **주의**: 빌드 시점의 `VITE_API_BASE` / `VITE_WS_BASE`가 설치된 앱에 박히므로, 배포 서버 주소를 **빌드 전** `.env` 또는 빌드 스크립트에서 지정해야 합니다.
 
+#### Windows에서 `npm run build`가 끝까지 안 되는 경우(권한 이슈)
+Windows에서 electron-builder가 내부 도구(`winCodeSign`)를 풀 때 **심볼릭 링크 생성 권한**이 없어 실패할 수 있습니다.
+
+- **해결 1(권장)**: Windows **개발자 모드(Developer Mode)** 활성화
+- **해결 2**: 터미널/IDE를 **관리자 권한**으로 실행 후 다시 빌드
+- **임시 대안**: 설치형(NSIS) 생성이 실패해도 `apps/desktop/release/win-unpacked/JarvisChat.exe`는 만들어질 수 있습니다.
+  - 이 폴더를 ZIP으로 묶어 배포하거나, GitHub Releases에 그대로 업로드해도 됩니다.
+
 ---
 
 ## 4. 요약
